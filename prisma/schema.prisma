@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model WorkoutSession {
+  id              String          @id @default(cuid())
+  date            DateTime
+  type            String
+  title           String?
+  durationSeconds Int?
+  notes           String?
+  rpe             Int?
+  legsCooked      Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  strengthEntries StrengthEntry[]
+  kettlebellEntry KettlebellEntry?
+  rideEntry       RideEntry?
+}
+
+model StrengthEntry {
+  id            String       @id @default(cuid())
+  sessionId     String
+  lift          String
+  sets          Int
+  reps          Int
+  weightKg      Float
+  completedSets Int?
+  completedReps Int?
+  isOptional    Boolean      @default(false)
+  session       WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model KettlebellEntry {
+  id                   String     @id @default(cuid())
+  sessionId            String     @unique
+  protocol             String
+  bellsKg              Int        @default(16)
+  roundsCompleted      Int?
+  emomMinutesCompleted Int?
+  swingsPerRound       Int        @default(10)
+  squatsPerRound       Int        @default(10)
+  pushupsTarget        Int?
+  session              WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model RideEntry {
+  id             String       @id @default(cuid())
+  sessionId      String       @unique
+  source         String
+  startTime      DateTime?
+  durationSeconds Int
+  distanceM      Float
+  elevationM     Float?
+  avgSpeedMps    Float?
+  effort         String?
+  activityName   String?
+  fingerprint    String?      @unique
+  session        WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model DailyCheckin {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  sleep      Int
+  fatigue    Int
+  motivation Int
+  weightKg   Float?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

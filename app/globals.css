@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --app-bg: #f9f7f2;
+  --card-bg: #ffffff;
+  --accent: #b6f14e;
+  --ink: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+main {
+  min-height: 100vh;
+}
+
+.app-bg {
+  background-image: theme("backgroundImage.glow"), theme("backgroundImage.grain");
+  background-size: cover, 14px 14px;
+}
+
+.card {
+  @apply rounded-2xl bg-white shadow-soft border border-slate-100;
+}
+
+.card-ghost {
+  @apply rounded-2xl border border-slate-200/60 bg-white/70 backdrop-blur;
+}
+
+.button {
+  @apply inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition;
+}
+
+.button-primary {
+  @apply button bg-ink text-white hover:shadow-lift;
+}
+
+.button-secondary {
+  @apply button border border-slate-200 bg-white hover:border-slate-300;
+}
+
+.tag {
+  @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600;
+}
+
+.input {
+  @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200;
+}
+
+.label {
+  @apply text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+
+.section-title {
+  @apply font-heading text-xl font-semibold text-slate-900;
+}
+
+.fade-up {
+  animation: fadeUp 0.6s ease-out;
+}
