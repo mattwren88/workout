@@ -1,6 +1,8 @@
 // Program data, state and all training logic. No DOM here, so it runs under node:test.
 // Ported from reference/Main.dc.html (the Claude Design prototype).
 
+import { planFor, daysFor, madcowBump } from './programs.js';
+
 export const STORAGE_KEY = 'fivebyfive.v1';
 
 export const LIFTS = {
@@ -18,6 +20,10 @@ export const SCHEMES = {
 
 export const LADDER = { '5x5': '3x5', '3x5': '3x3', '1x5': '1x3' };
 export const PLAN = { A: ['squat', 'bench', 'row'], B: ['squat', 'ohp', 'dead'] };
+export const PROGRAM_IDS = ['sl', 'lite', 'madcow', 'texas'];
+// Weekly programs reuse the Day A / Day B accessory slots: A = Mon + Fri, B = Wed.
+const AB_SLOT = { M: 'A', W: 'B', F: 'A', V: 'A', R: 'B', I: 'A' };
+export const abSlot = (day) => AB_SLOT[day] || day;
 
 export const ACC_LIB = [
   { key: 'pullup', name: 'Pull-ups', sets: 3, reps: 8, kind: 'bw' },
@@ -76,7 +82,7 @@ export function extraDef(key) {
 
 export function fresh() {
   return {
-    program: 'sl', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
+    program: 'sl', texasPress: 'bench', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
     weights: defaults('lb'), fails: zeros(), deloads: zeros(), schemes: defaultSchemes(),
     offers: {}, accs: {}, accW: {}, accSR: {}, dayC: { kb: true, cycle: false }, cycleMins: 45,
     cycleDone: false, healthSync: false, mode: 'bar', next: 'A', sets: {}, history: [],
@@ -90,7 +96,7 @@ export function fresh() {
 // The v3 backup format. Matches the prototype exactly so old backups restore.
 export function persisted(m) {
   return {
-    v: 3, program: m.program, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
+    v: 3, program: m.program, texasPress: m.texasPress, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
     weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
     accs: m.accs, accW: m.accW, accSR: m.accSR, dayC: m.dayC, cycleMins: m.cycleMins,
     cycleDone: m.cycleDone, healthSync: m.healthSync, mode: m.mode, next: m.next, sets: m.sets,
@@ -101,7 +107,8 @@ export function persisted(m) {
 export function absorb(s, p) {
   if (!p || typeof p !== 'object' || !p.weights || (p.unit !== 'lb' && p.unit !== 'kg')) return false;
   const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
-  s.program = p.program === 'lite' ? 'lite' : 'sl';
+  s.program = PROGRAM_IDS.includes(p.program) ? p.program : 'sl';
+  s.texasPress = p.texasPress === 'ohp' ? 'ohp' : 'bench';
   s.unit = p.unit;
   s.bar = typeof p.bar === 'number' ? p.bar : (p.unit === 'kg' ? 20 : 45);
   s.incs = Object.assign(defaultIncs(p.unit), obj(p.incs));
@@ -120,7 +127,7 @@ export function absorb(s, p) {
   s.healthSync = p.healthSync === true;
   // 'kb' was the prototype's kettlebell mode; it is now Day C.
   s.mode = p.mode === 'kb' || p.mode === 'c' ? 'c' : 'bar';
-  s.next = p.next === 'B' ? 'B' : 'A';
+  s.next = daysFor(s.program).includes(p.next) ? p.next : daysFor(s.program)[0];
   s.sets = obj(p.sets);
   s.history = Array.isArray(p.history) ? p.history : [];
   s.sessionStart = typeof p.sessionStart === 'number' ? p.sessionStart : null;
@@ -241,7 +248,7 @@ export class Tracker {
     return out.join(' ');
   }
 
-  warmups(id, w) {
+  warmups(id, w, label) {
     const lift = LIFTS[id], bar = this.state.bar, st = step(this.state.unit);
     const rows = [];
     if (w > bar) {
@@ -253,7 +260,7 @@ export class Tracker {
       }
     }
     const list = rows.map((r) => ({ reps: r.reps, weightText: fmt(r.w), plates: this.plates(r.w), work: false }));
-    list.push({ reps: schemeLabel(this.schemeFor(id)), weightText: fmt(w), plates: this.plates(w), work: true });
+    list.push({ reps: label || schemeLabel(this.schemeFor(id)), weightText: fmt(w), plates: this.plates(w), work: true });
     return list;
   }
 
@@ -348,17 +355,29 @@ export class Tracker {
     this.save({ unit, weights: w, bar, incs: defaultIncs(unit), accW });
   }
 
-  setProgram(p) { this.save({ program: p, sets: {}, offers: {} }); }
+  // Switching keeps working weights; each program reads them as its own base.
+  setProgram(p) {
+    if (p === this.state.program) return;
+    const days = daysFor(p);
+    const next = days.includes(this.state.next) ? this.state.next : days[0];
+    this.save({ program: p, next, sets: {}, offers: {}, sessionStart: null, restFrom: null, restLift: null });
+  }
+
+  plan(day = this.state.next) { return planFor(this.state, day, (id) => this.schemeFor(id)); }
+
+  nextDay(day = this.state.next) {
+    const days = daysFor(this.state.program);
+    return days[(days.indexOf(day) + 1) % days.length];
+  }
   setMode(m) { this.save({ mode: m, restFrom: null, restLift: null }); }
 
   swapWorkout() {
-    const s = this.state;
-    this.save({ next: s.next === 'A' ? 'B' : 'A', sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
+    this.save({ next: this.nextDay(), sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
   }
 
   activeAccs() {
     const s = this.state;
-    const today = s.mode === 'c' ? 'C' : s.next;
+    const today = s.mode === 'c' ? 'C' : abSlot(s.next);
     return ACC_LIB.filter((d) => { const day = s.accs[d.key]; return day === today || (day === 'both' && today !== 'C'); })
       .map((d) => this.def(d));
   }
@@ -408,22 +427,22 @@ export class Tracker {
     const weights = { ...s.weights }, fails = { ...s.fails };
     const deloads = { ...s.deloads }, offers = { ...s.offers };
     const logged = [];
-    for (const id of PLAN[s.next]) {
-      const arr = s.sets[id] || [];
-      const sk = this.schemeFor(id), sc = SCHEMES[sk];
-      let any = false, ok = true;
+    for (const item of this.plan()) {
+      const id = item.id, arr = s.sets[id] || [];
+      let any = false;
       const reps = [];
-      for (let i = 0; i < sc.sets; i++) {
-        const v = arr[i];
-        if (v != null) any = true;
-        reps.push(v == null ? 0 : v);
-        if (v !== sc.reps) ok = false;
-      }
+      item.sets.forEach((set, i) => { const v = arr[i]; if (v != null) any = true; reps.push(v == null ? 0 : v); });
       if (!any) continue;
+      const pr = item.progress;
+      const idx = pr && pr.idx ? pr.idx : item.sets.map((_, i) => i);
+      const ok = idx.every((i) => arr[i] === item.sets[i].reps);
+      const sk = item.scheme || item.label;
       const w = weights[id];
       let outcome;
-      if (ok) {
-        weights[id] = round2(w + s.incs[id]);
+      if (!pr) {
+        outcome = '';
+      } else if (ok) {
+        weights[id] = pr.type === 'pct' ? madcowBump(w, s.unit) : round2(w + s.incs[id]);
         fails[id] = 0;
         outcome = 'next ' + fmt(weights[id]);
       } else {
@@ -438,14 +457,16 @@ export class Tracker {
           outcome = 'repeat · miss ' + fails[id] + '/3';
         }
       }
-      logged.push({ id, name: LIFTS[id].name, w, unit: s.unit, ok, scheme: sk, weightText: fmt(w) + ' ' + s.unit, reps: reps.join(' '), outcome });
+      logged.push({ id, name: LIFTS[id].name, w: item.top, unit: s.unit, ok, scheme: sk, weightText: fmt(item.top) + ' ' + s.unit, reps: reps.join(' '), outcome });
     }
     this.activeAccs().forEach((d) => { const e = this.logExtra(d, s.sets['x:' + d.key] || []); if (e) logged.push(e); });
     if (!logged.length) return;
     const history = [{ date, start: s.sessionStart || undefined, workout: s.next, program: s.program, mins: this.sessionMins(), lifts: logged }].concat(s.history);
     this.save({
       weights, fails, deloads, offers, history, sets: {}, sessionStart: null,
-      next: s.next === 'A' ? 'B' : 'A', tab: 'history', openWarm: null, restFrom: null, restLift: null
+      // Texas Method: bench and press swap after each Friday.
+      texasPress: s.program === 'texas' && s.next === 'I' ? (s.texasPress === 'ohp' ? 'bench' : 'ohp') : s.texasPress,
+      next: this.nextDay(), tab: 'history', openWarm: null, restFrom: null, restLift: null
     });
   }
 

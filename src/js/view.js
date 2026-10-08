@@ -1,9 +1,10 @@
 // Turns Tracker state into HTML. Buttons carry data-act="<n>" pointing at a handler
 // collected during render; main.js dispatches clicks to them.
 import {
-  LIFTS, SCHEMES, LADDER, PLAN, ACC_LIB, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
+  LIFTS, LADDER, ACC_LIB, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
   fmt, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
+import { PROGRAMS, DAY_TITLES, DAY_SUBTITLES, isLinear, daysFor } from './programs.js';
 
 const ACC_COLOR = '#B8AE98';
 const KB_COLOR = '#5A554B';
@@ -81,18 +82,19 @@ export function render(t, now) {
   // ---------- LOG ----------
   const logView = () => {
     const ret = !isC ? t.returnInfo() : null;
-    const other = s.next === 'A' ? 'B' : 'A';
+    const other = t.nextDay();
+    const prog = PROGRAMS[s.program] || PROGRAMS.sl;
     let html = `<header class="head">
       <div class="head__top">
-        <div><div class="eyebrow">${esc(dateText(now))} · ${isC ? 'IN-BETWEEN DAY' : (s.program === 'lite' ? 'LITE 2×5' : 'STRONGLIFTS 5×5')}</div>
-        <h1 class="title">Day ${isC ? 'C' : s.next}</h1></div>
-        ${isC ? '' : `<button class="btn btn--ghost btn--sm" ${on(() => t.swapWorkout())}>SWITCH → ${other}</button>`}
+        <div><div class="eyebrow">${esc(dateText(now))} · ${isC ? 'IN-BETWEEN DAY' : prog.name + (DAY_SUBTITLES[s.next] ? ' · ' + DAY_SUBTITLES[s.next] : '')}</div>
+        <h1 class="title">${isC ? 'Day C' : DAY_TITLES[s.next]}</h1></div>
+        ${isC ? '' : `<button class="btn btn--ghost btn--sm" aria-label="Switch to ${DAY_TITLES[other]}" ${on(() => t.swapWorkout())}>SWITCH → ${shortDay(other)}</button>`}
       </div>
       <div class="head__meta">
         <div class="week"><span class="eyebrow">THIS WEEK</span><div class="week__days">${weekStrip(s, now)}</div></div>
         ${s.sessionStart ? `<div class="eyebrow" data-live="session">${sessionText(s, now)}</div>` : ''}
       </div>
-      <div class="grid2">${seg([['bar', 'BARBELL · DAY ' + s.next], ['c', 'DAY C']], s.mode, (m) => t.setMode(m))}</div>
+      <div class="grid2">${seg([['bar', 'BARBELL · ' + DAY_TITLES[s.next].toUpperCase()], ['c', 'DAY C']], s.mode, (m) => t.setMode(m))}</div>
     </header>`;
 
     if (ret) {
@@ -111,7 +113,7 @@ export function render(t, now) {
       html += defs.map((d) => extraCard(d, KB_ROUTINE.some((k) => k.key === d.key) ? INK : (d.kind === 'kb' ? KB_COLOR : ACC_COLOR))).join('');
       if (!s.dayC.cycle && !defs.length) html += '<p class="note note--pad">Nothing on Day C yet. Turn on the kettlebell routine or cycling, or add accessories to Day C, under Setup.</p>';
     } else {
-      html += PLAN[s.next].map((id) => liftCard(id)).join('');
+      html += t.plan().map((item) => liftCard(item)).join('');
       const extraDefs = t.activeAccs();
       if (extraDefs.length) {
         html += '<div class="label label--pad">ACCESSORIES</div>';
@@ -122,16 +124,18 @@ export function render(t, now) {
     }
 
     html += `<div class="finish">
-      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => { t.finish(); t.syncHealth(); })}>Finish Day ${isC ? 'C' : s.next}</button>
+      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => { t.finish(); t.syncHealth(); })}>Finish ${isC ? 'Day C' : DAY_TITLES[s.next]}</button>
       <p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p></div>`;
     return html;
   };
 
-  const liftCard = (id) => {
-    const lift = LIFTS[id], w = s.weights[id];
-    const sk = t.schemeFor(id), sc = SCHEMES[sk];
+  const liftCard = (item) => {
+    const id = item.id, lift = LIFTS[id], w = item.top;
+    const linear = isLinear(s.program);
+    const sk = item.scheme || '5x5';
     const open = s.openWarm === id;
-    let last = lastText(t.lastFor(id, lift.name), sc.reps);
+    const ramp = item.sets.some((x) => x.w !== item.sets[0].w || x.reps !== item.sets[0].reps);
+    let last = lastText(t.lastFor(id, lift.name), item.sets[item.sets.length - 1].reps);
     if (s.fails[id] > 0) last += ' · miss ' + s.fails[id] + '/3';
     const nextScheme = LADDER[sk];
     const offer = !!s.offers[id] && !!nextScheme && s.program === 'sl';
@@ -140,21 +144,34 @@ export function render(t, now) {
       <div class="lift__body">
         <div class="lift__head">
           <div><h2 class="lift__name">${lift.name}</h2>
-          <div class="note">${schemeLabel(sk)}${s.deloads[id] > 0 && s.program === 'sl' ? ' · deloads ' + s.deloads[id] : ''}</div></div>
+          <div class="note">${esc(item.label)}${s.deloads[id] > 0 && s.program === 'sl' ? ' · deloads ' + s.deloads[id] : ''}</div></div>
           <div class="weight">${fmt(w)}<span class="weight__unit"> ${s.unit}</span></div>
         </div>
         ${offer ? `<div class="offer"><div>This lift has stalled through two deloads. Fewer sets usually gets it moving again.</div>
           <div class="grid2"><button class="btn btn--ink" ${on(() => t.acceptOffer(id))}>SWITCH TO ${schemeLabel(nextScheme)}</button>
           <button class="btn btn--ghost" ${on(() => t.declineOffer(id))}>NOT NOW</button></div></div>` : ''}
-        ${setButtons(id, sc.sets, sc.reps, s.restGood)}
+        ${ramp ? rampButtons(id, item.sets, s.restGood) : setButtons(id, item.sets.length, item.sets[0].reps, s.restGood)}
         <div class="lift__foot"><div>${esc(last)}</div>${restBtn(id)}</div>
         ${open ? `<div class="warm"><div class="warm__row warm__row--head"><div>SETS</div><div>${s.unit.toUpperCase()}</div><div>PLATES / SIDE</div></div>
-          ${t.warmups(id, w).map((r) => `<div class="warm__row${r.work ? ' is-work' : ''}"><div>${r.reps}</div><div>${r.weightText}</div><div>${r.plates}</div></div>`).join('')}</div>` : ''}
+          ${(linear || !ramp ? t.warmups(id, w, item.sets.length + '×' + item.sets[0].reps) : item.sets.map((x) => ({ reps: '1×' + x.reps, weightText: fmt(x.w), plates: t.plates(x.w), work: x.w === w })))
+            .map((r) => `<div class="warm__row${r.work ? ' is-work' : ''}"><div>${r.reps}</div><div>${r.weightText}</div><div>${r.plates}</div></div>`).join('')}</div>` : ''}
         <div class="lift__tools">
-          <button class="link" aria-expanded="${open}" ${on(() => t.setState({ openWarm: open ? null : id }))}>${open ? '− hide' : (w <= s.bar ? '+ plates' : '+ warm-up')}</button>
+          <button class="link" aria-expanded="${open}" ${on(() => t.setState({ openWarm: open ? null : id }))}>${open ? '− hide' : (w <= s.bar || ramp ? '+ plates' : '+ warm-up')}</button>
           <div class="pms">${pm(lift.name, () => t.adjust(id, -1), () => t.adjust(id, 1))}</div>
         </div>
       </div></section>`;
+  };
+
+  // Sets with their own reps and weights (ramps): weight printed under each button.
+  const rampButtons = (key, list, restFull) => {
+    const arr = s.sets[key] || [];
+    return `<div class="sets">${list.map((x, i) => {
+      const v = arr[i];
+      if (v != null) anyLogged = true;
+      const state = v == null ? '' : (v === x.reps ? ' is-full' : ' is-miss');
+      const aria = (v == null ? 'not done' : v + ' of ' + x.reps + ' reps') + ' at ' + fmt(x.w) + ' ' + s.unit;
+      return `<div class="set-col"><button class="set${state}" aria-label="Set ${i + 1}: ${aria}" ${on(() => t.tapSet(key, i, list.length, x.reps, restFull))}>${v == null ? x.reps : v}</button><div class="set-w">${fmt(x.w)}</div></div>`;
+    }).join('')}</div>`;
   };
 
   const cycleCard = () => {
@@ -210,7 +227,7 @@ export function render(t, now) {
     Object.values(LIFTS).forEach((l) => { byName[l.name] = l; });
     html += s.history.map((h, idx) => {
       const key = h.date + '|' + idx, confirming = s.confirmDel === key;
-      const title = h.workout === 'KB' ? 'Kettlebell' : 'Day ' + h.workout + (h.program === 'lite' ? ' · Lite' : '');
+      const title = (DAY_TITLES[h.workout] || 'Day ' + h.workout) + (h.program === 'lite' ? ' · Lite' : (h.program === 'madcow' ? ' · Madcow' : (h.program === 'texas' ? ' · Texas' : '')));
       const kindColor = (l) => (l.kind === 'cardio' || KB_ROUTINE.some((k) => 'x:' + k.key === l.id) ? INK : (l.kind === 'kb' ? KB_COLOR : ACC_COLOR));
       const lifts = (h.lifts || []).map((l) => {
         const m = (l.id && LIFTS[l.id]) || byName[l.name];
@@ -231,7 +248,7 @@ export function render(t, now) {
   // ---------- SETUP ----------
   const settingsView = () => {
     const section = (label, body, note) => `<section class="block"><h2 class="label">${label}</h2>${body}${note ? `<p class="note">${note}</p>` : ''}</section>`;
-    const locked = s.program === 'lite';
+    const locked = s.program !== 'sl';
     const dayNames = { '': 'OFF', both: 'A + B', A: 'DAY A', B: 'DAY B', C: 'DAY C' };
     const srLinks = (base) => {
       const d = t.def(base);
@@ -240,10 +257,8 @@ export function render(t, now) {
         <button class="link link--sm link--muted" aria-label="${base.name} reps, now ${d.reps}. Tap to change." ${on(() => t.cycleSR(base.key, 'reps'))}>× ${d.reps}${base.note ? ' ' + base.note : ''}</button></div>`;
     };
     let html = '<header class="head head--plain"><h1 class="title">Setup</h1></header>';
-    html += section('PROGRAM', `<div class="grid2">${seg([['sl', 'STRONGLIFTS 5×5'], ['lite', 'LITE 2×5']], s.program, (p) => t.setProgram(p))}</div>`,
-      s.program === 'lite'
-        ? 'Same lifts and progression with two sets each. Half the volume, for when recovery is short, like a heavy cycling block.'
-        : 'Classic 5×5 on squat, bench, row and press, 1×5 deadlift. Alternate Day A and Day B.');
+    html += section('PROGRAM', `<div class="grid2">${seg(Object.keys(PROGRAMS).map((k) => [k, PROGRAMS[k].name]), s.program, (p) => t.setProgram(p))}</div>`,
+      PROGRAMS[s.program].note + ' Switching keeps your weights and history.');
     html += section('UNITS', `<div class="grid2">${seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, (u) => t.setUnit(u))}</div>`,
       'Switching converts your working weights and rounds them to plates and bells you can load.');
     html += section('BAR WEIGHT', `<div class="grid3">${seg(barChoices(s.unit).map((b) => [b, b + ' ' + s.unit]), s.bar, (b) => t.save({ bar: b }))}</div>`,
@@ -251,15 +266,22 @@ export function render(t, now) {
     html += section('REST AFTER A GOOD SET', `<div class="grid3">${seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, (r) => t.save({ restGood: r }))}</div>`,
       'After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up.');
     html += section('MAIN LIFTS', Object.keys(LIFTS).map((id) => {
-      const l = LIFTS[id], sch = schemeLabel(t.schemeFor(id)), inc = '+' + fmt(s.incs[id]) + ' ' + s.unit + ' / session';
+      const l = LIFTS[id];
+      const sch = s.program === 'madcow' ? 'top set' : (s.program === 'texas' ? (id === 'dead' ? '1×5' : '5-rep target') : schemeLabel(t.schemeFor(id)));
+      const inc = s.program === 'madcow' ? '+2.5% / week' : '+' + fmt(s.incs[id]) + ' ' + s.unit + (s.program === 'texas' ? ' / week' : ' / session');
+      const incLocked = s.program === 'madcow' || (s.program === 'texas' && id === 'row');
       return `<div class="cfg"><div class="stripe stripe--thin" style="background:${l.color}"></div>
         <div class="grow"><div class="progress__name">${l.name}</div><div class="cfg__links">
           <button class="link link--sm link--muted${locked ? ' is-locked' : ''}" ${locked ? 'disabled' : ''} aria-label="Change ${l.name} sets and reps, now ${sch}" ${on(() => t.cycleScheme(id))}>${sch}</button>
-          <button class="link link--sm link--muted" aria-label="Change ${l.name} increment, now ${inc}" ${on(() => t.cycleInc(id))}>${inc}</button></div></div>
+          <button class="link link--sm link--muted${incLocked ? ' is-locked' : ''}" ${incLocked ? 'disabled' : ''} aria-label="Change ${l.name} increment, now ${inc}" ${on(() => t.cycleInc(id))}>${inc}</button></div></div>
         <button class="pm" aria-label="Lower ${l.name} weight" ${on(() => t.adjust(id, -1))}>&minus;</button>
         <div class="cfg__w">${fmt(s.weights[id])}</div>
         <button class="pm" aria-label="Raise ${l.name} weight" ${on(() => t.adjust(id, 1))}>+</button></div>`;
-    }).join(''), 'Tap the sets × reps or the increment to change them. After a lift stalls through two deloads, the log offers the next lower-volume step: 5×5 → 3×5 → 3×3.');
+    }).join(''), isLinear(s.program)
+      ? 'Tap the sets × reps or the increment to change them. After a lift stalls through two deloads, the log offers the next lower-volume step: 5×5 → 3×5 → 3×3.'
+      : (s.program === 'madcow'
+        ? 'Weights are your top set of 5: Monday for squat, bench and row; Wednesday for press and deadlift. The ramps are worked out from them. Texas Method doesn\'t use row.'
+        : 'Weights are your Friday 5-rep targets (deadlift: its Monday 1×5). Monday and Wednesday are worked out from them. Row isn\'t part of Texas Method.'));
     html += section('DAY C', `<div class="grid2">
         <button class="seg${s.dayC.kb ? ' is-on' : ''}" aria-pressed="${!!s.dayC.kb}" ${on(() => t.toggleDayC('kb'))}>KB ROUTINE</button>
         <button class="seg${s.dayC.cycle ? ' is-on' : ''}" aria-pressed="${!!s.dayC.cycle}" ${on(() => t.toggleDayC('cycle'))}>CYCLING</button></div>
@@ -303,19 +325,25 @@ export function render(t, now) {
   return { html: `<main class="main" id="main">${body}</main><nav class="tabs" aria-label="Sections">${tabs}</nav>`, acts };
 }
 
+// One- or three-letter label for chips and the switch button.
+function shortDay(d) { return { M: 'MON', W: 'WED', F: 'FRI', V: 'VOL', R: 'REC', I: 'INT' }[d] || d; }
+
 function weekStrip(s, now) {
   const d = new Date(now);
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   const done = s.history.filter((h) => new Date(h.date) >= start).reverse();
   const chip = (label, aria, cls) => `<div class="chip ${cls}" aria-label="${aria}">${esc(label)}</div>`;
-  const label = (w) => (w === 'KB' ? 'C' : w);
-  let html = done.map((h) => chip(label(h.workout), 'Day ' + label(h.workout) + ' done', 'is-done')).join('');
-  html += chip(s.next, 'Day ' + s.next + ' up next', 'is-next');
-  let nextLetter = s.next === 'A' ? 'B' : 'A';
-  for (let k = done.filter((h) => h.workout === 'A' || h.workout === 'B').length + 1; k < 3; k++) {
-    html += chip(nextLetter, 'Day ' + nextLetter + ' planned', 'is-planned');
-    nextLetter = nextLetter === 'A' ? 'B' : 'A';
+  const label = (w) => (w === 'KB' ? 'C' : shortDay(w));
+  const name = (w) => DAY_TITLES[w] || 'Day ' + w;
+  let html = done.map((h) => chip(label(h.workout), name(h.workout) + ' done', 'is-done')).join('');
+  html += chip(label(s.next), name(s.next) + ' up next', 'is-next');
+  const days = daysFor(s.program);
+  let nxt = days[(days.indexOf(s.next) + 1) % days.length];
+  const lifted = done.filter((h) => h.workout !== 'C' && h.workout !== 'KB').length;
+  for (let k = lifted + 1; k < 3; k++) {
+    html += chip(label(nxt), name(nxt) + ' planned', 'is-planned');
+    nxt = days[(days.indexOf(nxt) + 1) % days.length];
   }
   return html;
 }

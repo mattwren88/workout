@@ -181,3 +181,64 @@ test('health sync writes pending sessions once and deletes on remove', async () 
   t.deleteSession(0);
   assert.deepEqual(calls.remove[0], ['fivebyfive:' + '2026-10-01T12:00:00.000Z', 'fivebyfive:2026-10-01T12:00:00.000Z:ride']);
 });
+
+const setsOf = (t, id) => t.plan().find((x) => x.id === id).sets;
+const hitAll = (t, id) => setsOf(t, id).forEach((x, i, a) => t.tapSet(id, i, a.length, x.reps, 180));
+
+test('Madcow: Monday ramp, Friday triple + back-off, +2.5% after a good Friday', () => {
+  const t = make();
+  t.setProgram('madcow');
+  t.save({ weights: { ...t.state.weights, squat: 200, ohp: 100 } });
+  assert.equal(t.state.next, 'M');
+  assert.deepEqual(setsOf(t, 'squat').map((x) => x.w), [100, 125, 150, 175, 200]);
+  hitAll(t, 'squat'); t.finish();
+  assert.equal(t.state.weights.squat, 200); // Monday doesn't progress
+  assert.equal(t.state.next, 'W');
+  assert.deepEqual(setsOf(t, 'squat').map((x) => x.w), [100, 125, 150, 150]);
+  hitAll(t, 'ohp'); t.finish();
+  assert.equal(t.state.weights.ohp, 102.5);
+  const fri = setsOf(t, 'squat');
+  assert.deepEqual(fri.map((x) => [x.reps, x.w]), [[5, 100], [5, 125], [5, 150], [5, 175], [3, 205], [8, 150]]);
+  hitAll(t, 'squat'); t.finish();
+  assert.equal(t.state.weights.squat, 205);
+  assert.equal(t.state.next, 'M');
+  assert.equal(t.state.history[0].lifts[0].w, 205); // logs the top set
+});
+
+test('Madcow: missed triple repeats', () => {
+  const t = make();
+  t.setProgram('madcow');
+  t.save({ next: 'F', weights: { ...t.state.weights, squat: 200 } });
+  const fri = setsOf(t, 'squat');
+  fri.forEach((x, i) => { t.tapSet('squat', i, fri.length, x.reps, 180); if (i === 4) t.tapSet('squat', i, fri.length, x.reps, 180); });
+  t.finish();
+  assert.equal(t.state.weights.squat, 200);
+  assert.equal(t.state.fails.squat, 1);
+});
+
+test('Texas Method: 90% volume, 80% recovery, Friday PR, bench/press swap', () => {
+  const t = make();
+  t.setProgram('texas');
+  t.save({ weights: { ...t.state.weights, squat: 300, bench: 200, ohp: 135, dead: 365 } });
+  assert.deepEqual(t.plan().map((x) => [x.id, x.sets.length, x.sets[0].w]), [['squat', 5, 270], ['bench', 5, 180], ['dead', 1, 365]]);
+  hitAll(t, 'dead'); t.finish();
+  assert.equal(t.state.weights.dead, 375);
+  assert.deepEqual(t.plan().map((x) => [x.id, x.sets.length, x.sets[0].w]), [['squat', 2, 215], ['ohp', 3, 120]]);
+  t.tapSet('squat', 0, 2, 5, 180); t.finish();
+  assert.equal(t.state.next, 'I');
+  hitAll(t, 'squat'); hitAll(t, 'bench'); t.finish();
+  assert.equal(t.state.weights.squat, 305);
+  assert.equal(t.state.weights.bench, 205);
+  assert.equal(t.state.texasPress, 'ohp');
+  assert.equal(t.plan()[1].id, 'ohp');
+});
+
+test('switching programs keeps weights and picks a valid day', () => {
+  const t = make();
+  t.save({ next: 'B', weights: { ...t.state.weights, squat: 225 } });
+  t.setProgram('texas');
+  assert.equal(t.state.next, 'V');
+  assert.equal(t.state.weights.squat, 225);
+  t.setProgram('sl');
+  assert.equal(t.state.next, 'A');
+});

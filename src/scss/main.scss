@@ -458,3 +458,9 @@ textarea {
 }
 
 .set--wide { width: auto; min-width: 96px; padding: 0 14px; font-size: 14px; letter-spacing: 0.06em; }
+
+.set-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.set-w { font-size: 11px; color: var(--muted); }
+
+.head__top .btn--sm { white-space: nowrap; flex: 0 0 auto; }
+.head__top .title { font-size: clamp(34px, 10.5vw, 46px); }
