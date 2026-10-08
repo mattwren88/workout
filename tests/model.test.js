@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Tracker, persisted, STORAGE_KEY } from '../src/js/model.js';
+import { Tracker, persisted, STORAGE_KEY, healthRecords } from '../src/js/model.js';
 
 const mem = (init) => {
   const m = new Map(init ? [[STORAGE_KEY, JSON.stringify(init)]] : []);
@@ -144,4 +144,40 @@ test('prototype kettlebell mode restores as Day C', () => {
   t.restore(JSON.stringify(old));
   assert.equal(t.state.mode, 'c');
   assert.equal(t.state.dayC.kb, true);
+});
+
+test('health records: strength session, Day C ride placed before work', () => {
+  const t = make();
+  t.tapSet('squat', 0, 5, 5, 180);
+  t.advance(40 * 60000);
+  t.finish();
+  const [rec] = healthRecords(t.state.history[0]);
+  assert.equal(rec.type, 'strength');
+  assert.equal(rec.end - rec.start, 40 * 60000);
+  assert.match(rec.notes, /Squat · 45 lb · 5 0 0 0 0/);
+
+  const c = { date: '2026-10-08T18:00:00.000Z', workout: 'C', mins: 20, lifts: [
+    { id: 'x:cycle', name: 'Cycling', weightText: '45 min', reps: '' },
+    { id: 'x:kb_swing', name: 'Two-Hand Swing', weightText: '35 lb', reps: '10' }] };
+  const [work, ride] = healthRecords(c);
+  assert.equal(ride.type, 'cycling');
+  assert.equal(ride.end, work.start);
+  assert.equal(ride.end - ride.start, 45 * 60000);
+  assert.equal(healthRecords({ ...c, lifts: [c.lifts[0]] })[0].end, Date.parse(c.date));
+});
+
+test('health sync writes pending sessions once and deletes on remove', async () => {
+  const calls = { write: [], remove: [] };
+  const t = make();
+  t.health = { request: async () => true, write: async (r) => { calls.write.push(r); }, remove: async (ids) => { calls.remove.push(ids); } };
+  logAll(t, 'squat'); t.finish();
+  await t.syncHealth(); // off: nothing
+  assert.equal(calls.write.length, 0);
+  await t.enableHealth();
+  assert.equal(calls.write.length, 1);
+  assert.equal(t.state.history[0].synced, true);
+  await t.syncHealth();
+  assert.equal(calls.write.length, 1);
+  t.deleteSession(0);
+  assert.deepEqual(calls.remove[0], ['fivebyfive:' + '2026-10-01T12:00:00.000Z', 'fivebyfive:2026-10-01T12:00:00.000Z:ride']);
 });

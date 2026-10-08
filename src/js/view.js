@@ -122,7 +122,7 @@ export function render(t, now) {
     }
 
     html += `<div class="finish">
-      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => t.finish())}>Finish Day ${isC ? 'C' : s.next}</button>
+      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => { t.finish(); t.syncHealth(); })}>Finish Day ${isC ? 'C' : s.next}</button>
       <p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p></div>`;
     return html;
   };
@@ -273,6 +273,13 @@ export function render(t, now) {
         <button class="seg seg--day${day ? ' is-on' : ''}" aria-label="${d.name}: ${day ? 'on ' + dayNames[day] : 'off'}. Tap to change." ${on(() => t.cycleAccDay(d.key))}>${dayNames[day]}</button></div>`;
     }).join(''));
     html += section('PROGRESSION', '<p>Hit every rep and the lift goes up next time. Miss reps and the weight repeats. Three misses in a row drops it 10%. After two weeks or more away, the log offers to ease you back in.</p>');
+    html += section('GOOGLE HEALTH', t.health
+      ? `<div class="grid2">
+          <button class="seg${s.healthSync ? ' is-on' : ''}" aria-pressed="${s.healthSync}" ${on(() => t.enableHealth())}>${s.healthSync ? 'SYNC ON' : 'CONNECT'}</button>
+          <button class="seg" ${s.healthSync ? '' : 'disabled'} ${on(() => t.disableHealth())}>TURN OFF</button></div>
+        ${s.healthMsg ? `<div role="status" class="msg${s.healthOk ? '' : ' is-danger'}">${esc(s.healthMsg)}</div>` : ''}`
+      : '<p>Health Connect sync works in the Android app, not in this preview.</p>',
+      'Each finished session is written to Health Connect as a strength workout, and Day C cycling as a ride. Connecting also sends your past sessions. Deleting a session here removes it there too.');
     html += section('BACKUP', `<p class="note">Your log lives on this device. Uninstalling the app erases it, so save a backup somewhere safe now and then.</p>
       <div class="grid2"><button class="btn btn--ink" ${on(() => t.ui.shareBackup())}>SAVE BACKUP</button>
       <button class="btn btn--ghost" aria-expanded="${!!s.backupOpen}" ${on(() => t.setState({ backupOpen: !s.backupOpen, backupMsg: '' }))}>${s.backupOpen ? 'HIDE' : 'RESTORE'}</button></div>

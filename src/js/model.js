@@ -79,11 +79,11 @@ export function fresh() {
     program: 'sl', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
     weights: defaults('lb'), fails: zeros(), deloads: zeros(), schemes: defaultSchemes(),
     offers: {}, accs: {}, accW: {}, accSR: {}, dayC: { kb: true, cycle: false }, cycleMins: 45,
-    cycleDone: false, mode: 'bar', next: 'A', sets: {}, history: [],
+    cycleDone: false, healthSync: false, mode: 'bar', next: 'A', sets: {}, history: [],
     sessionStart: null, returnSeen: null,
     // UI-only state below, never persisted
     tab: 'workout', openWarm: null, restFrom: null, restLift: null, restTarget: 180,
-    confirmReset: false, confirmDel: null, backupOpen: false, backupMsg: '', backupOk: true, importText: ''
+    confirmReset: false, confirmDel: null, healthMsg: '', healthOk: true, backupOpen: false, backupMsg: '', backupOk: true, importText: ''
   };
 }
 
@@ -93,7 +93,7 @@ export function persisted(m) {
     v: 3, program: m.program, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
     weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
     accs: m.accs, accW: m.accW, accSR: m.accSR, dayC: m.dayC, cycleMins: m.cycleMins,
-    cycleDone: m.cycleDone, mode: m.mode, next: m.next, sets: m.sets,
+    cycleDone: m.cycleDone, healthSync: m.healthSync, mode: m.mode, next: m.next, sets: m.sets,
     history: m.history, sessionStart: m.sessionStart, returnSeen: m.returnSeen
   };
 }
@@ -117,6 +117,7 @@ export function absorb(s, p) {
   s.dayC = Object.assign({ kb: true, cycle: false }, obj(p.dayC));
   s.cycleMins = typeof p.cycleMins === 'number' ? p.cycleMins : 45;
   s.cycleDone = p.cycleDone === true;
+  s.healthSync = p.healthSync === true;
   // 'kb' was the prototype's kettlebell mode; it is now Day C.
   s.mode = p.mode === 'kb' || p.mode === 'c' ? 'c' : 'bar';
   s.next = p.next === 'B' ? 'B' : 'A';
@@ -125,6 +126,29 @@ export function absorb(s, p) {
   s.sessionStart = typeof p.sessionStart === 'number' ? p.sessionStart : null;
   s.returnSeen = typeof p.returnSeen === 'string' ? p.returnSeen : null;
   return true;
+}
+
+// Health Connect records for one history entry. IDs are stable so re-syncing
+// updates rather than duplicates. Day C cycling is its own biking record,
+// placed just before any strength work so the two never overlap.
+export function healthId(entry) { return 'fivebyfive:' + entry.date; }
+
+export function healthRecords(entry) {
+  const end = Date.parse(entry.date);
+  const start = typeof entry.start === 'number' ? entry.start : end - Math.max(1, entry.mins || 1) * 60000;
+  const lifts = entry.lifts || [];
+  const ride = lifts.find((l) => l.id === 'x:cycle');
+  const work = lifts.filter((l) => l !== ride);
+  const name = entry.workout === 'KB' ? 'Kettlebell' : 'Day ' + entry.workout;
+  const notes = work.map((l) => l.name + ' · ' + l.weightText + (l.reps ? ' · ' + l.reps : '')).join('\n');
+  const out = [];
+  if (work.length) out.push({ id: healthId(entry), type: 'strength', start, end, title: '5×5 ' + name, notes });
+  if (ride) {
+    const ms = (parseInt(ride.weightText, 10) || 30) * 60000;
+    const rEnd = work.length ? start : end;
+    out.push({ id: healthId(entry) + ':ride', type: 'cycling', start: rEnd - ms, end: rEnd, title: 'Cycling', notes: '' });
+  }
+  return out;
 }
 
 export function liftEntry(l, id, name) { return l.id === id || (!l.id && l.name === name); }
@@ -376,7 +400,7 @@ export class Tracker {
       const cSets = { ...s.sets };
       defs.forEach((d) => { delete cSets['x:' + d.key]; });
       this.save({
-        history: [{ date, workout: 'C', mins: this.sessionMins(), lifts: cLogged }].concat(s.history),
+        history: [{ date, start: s.sessionStart || undefined, workout: 'C', mins: this.sessionMins(), lifts: cLogged }].concat(s.history),
         sets: cSets, cycleDone: false, sessionStart: null, tab: 'history', restFrom: null, restLift: null
       });
       return;
@@ -418,7 +442,7 @@ export class Tracker {
     }
     this.activeAccs().forEach((d) => { const e = this.logExtra(d, s.sets['x:' + d.key] || []); if (e) logged.push(e); });
     if (!logged.length) return;
-    const history = [{ date, workout: s.next, program: s.program, mins: this.sessionMins(), lifts: logged }].concat(s.history);
+    const history = [{ date, start: s.sessionStart || undefined, workout: s.next, program: s.program, mins: this.sessionMins(), lifts: logged }].concat(s.history);
     this.save({
       weights, fails, deloads, offers, history, sets: {}, sessionStart: null,
       next: s.next === 'A' ? 'B' : 'A', tab: 'history', openWarm: null, restFrom: null, restLift: null
@@ -450,7 +474,46 @@ export class Tracker {
     if (info) this.save({ returnSeen: info.lastDate });
   }
 
+  // ---------- Health Connect (this.health is set on Android; null in the browser) ----------
+  async enableHealth() {
+    if (!this.health) return;
+    try {
+      const granted = await this.health.request();
+      if (!granted) { this.setState({ healthOk: false, healthMsg: 'Permission not granted. Allow 5×5 to write exercise in Health Connect.' }); return; }
+      this.save({ healthSync: true });
+      await this.syncHealth();
+    } catch (e) {
+      this.setState({ healthOk: false, healthMsg: (e && e.message) || 'Could not reach Health Connect.' });
+    }
+  }
+
+  disableHealth() { this.save({ healthSync: false, healthMsg: '' }); }
+
+  // Writes every finished session not yet synced. Safe to repeat: records upsert by id.
+  async syncHealth() {
+    if (!this.health || !this.state.healthSync || this.syncing) return;
+    const pending = this.state.history.filter((h) => !h.synced);
+    if (!pending.length) return;
+    this.syncing = true;
+    try {
+      await this.health.write(pending.flatMap(healthRecords));
+      const done = new Set(pending.map((h) => h.date));
+      this.save({
+        history: this.state.history.map((h) => (done.has(h.date) ? { ...h, synced: true } : h)),
+        healthOk: true, healthMsg: 'Synced ' + pending.length + (pending.length === 1 ? ' session.' : ' sessions.')
+      });
+    } catch (e) {
+      this.setState({ healthOk: false, healthMsg: 'Sync failed: ' + ((e && e.message) || 'unknown error') + '. It will retry next time.' });
+    } finally {
+      this.syncing = false;
+    }
+  }
+
   deleteSession(idx) {
+    const gone = this.state.history[idx];
+    if (gone && gone.synced && this.health) {
+      this.health.remove([healthId(gone), healthId(gone) + ':ride']).catch(() => {});
+    }
     const next = this.state.history.slice();
     next.splice(idx, 1);
     this.save({ history: next, confirmDel: null });

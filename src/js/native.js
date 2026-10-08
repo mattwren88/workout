@@ -1,6 +1,6 @@
 // Thin wrappers over Capacitor plugins, with browser fallbacks so the same
 // bundle runs as the HTML preview.
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Haptics } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -9,6 +9,16 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 
 export const isNative = Capacitor.isNativePlatform();
+
+// Our own plugin: android/app/src/main/java/com/mattwren/fivebyfive/HealthSyncPlugin.kt
+const HealthSync = registerPlugin('HealthSync');
+
+export const health = isNative ? {
+  async status() { return HealthSync.status(); },
+  async request() { return (await HealthSync.requestPermission()).granted; },
+  async write(records) { await HealthSync.writeSessions({ records }); },
+  async remove(ids) { await HealthSync.deleteSessions({ ids }); }
+} : null;
 
 const REST_ID = 1;
 const CHANNEL = 'rest';

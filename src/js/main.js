@@ -8,6 +8,7 @@ let lastTab = null;
 
 const tracker = new Tracker({ storage: window.localStorage, onChange: draw });
 
+tracker.health = native.health;
 tracker.ui = {
   async shareBackup() {
     try {
@@ -75,7 +76,9 @@ setInterval(() => {
 }, 1000);
 
 // Coming back from the background: refresh dates, timers and the welcome-back check.
-document.addEventListener('visibilitychange', () => { if (!document.hidden) draw(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { draw(); tracker.syncHealth(); }
+});
 
 native.init({
   onBack() {
@@ -86,3 +89,4 @@ native.init({
 });
 
 draw();
+tracker.syncHealth(); // retry anything a previous run couldn't write
