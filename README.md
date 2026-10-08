@@ -1,64 +1,35 @@
-# Cadence Training Tracker
+# 5×5
 
-Local-first training app for cycling + strength. Built with Next.js, Prisma, SQLite, and Tailwind.
+A personal barbell tracker (StrongLifts 5×5 and Lite 2×5) packaged as an Android app.
+Plain JS + SCSS, built with esbuild and PostCSS, wrapped with Capacitor. Fully offline; data stays on the phone.
 
-## Setup
+`reference/Main.dc.html` is the Claude Design prototype this was ported from, and `HANDOFF.md` is the design brief.
 
-```bash
+## Get the APK
+Every push builds an APK on GitHub Actions (**Actions → Android APK → run → Artifacts**).
+Pushes to `main` also update **Releases → Latest build**, so the newest APK is always at the same link.
+
+On the phone, open the `.apk`, allow "install unknown apps" for your browser or Files app once, then install.
+
+**Signing:** add the repo secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
+(Settings → Secrets and variables → Actions). With them, each new APK installs over the old one and keeps your data.
+Without them, builds use a throwaway debug key and you'd have to uninstall first, which erases the log.
+Keep the keystore safe: losing it means the next build can't update the installed app.
+
+## Develop
+```sh
 npm install
-npx prisma generate
-npx prisma migrate dev --name init
-npm run dev
+npm run dev       # rebuilds www/ on save, serves it with live reload
+npm test          # training logic tests
+npm run lint
+npm run preview   # preview/index.html: one self-contained file to open in any browser
+npm run android   # build www/ and copy it into the Android project
+npm run apk       # needs a local Android SDK
 ```
 
-Optional seed data:
+`src/js/model.js` holds all the program logic (no DOM), `view.js` renders it, `native.js` wraps the
+Capacitor plugins (rest-timer notifications, haptics, keep-awake, share/backup) with browser fallbacks.
 
-```bash
-npx prisma db seed
-```
-
-## Key Routes
-
-- `/` overview
-- `/log` quick logging (Strength A/B, KB, Ride, Daily Check-in)
-- `/sessions` history + edit
-- `/import` cycling CSV import
-- `/dashboard/strength` strength analytics
-- `/dashboard/cycling` cycling analytics
-- `/plan` weekly plan + compliance
-- `/settings` units and schedule
-
-## CSV Import
-
-- Upload a `.csv` export of rides.
-- The importer treats values as raw SI units, even if headers imply otherwise:
-  - Distance in meters
-  - Duration in seconds (or `HH:MM:SS` strings)
-  - Elevation in meters
-  - Avg speed in m/s
-- If headers do not match, use the column mapping UI.
-- Duplicates are detected by a fingerprint of start time + duration + distance + activity name and skipped.
-
-## Assumptions
-
-- Single-user, local-only app.
-- Strength and KB templates match the provided program.
-- Units are stored internally in SI (meters, seconds, kilograms). The UI toggles metric/imperial display.
-
-## Prisma + Migrations
-
-```bash
-npx prisma migrate dev --name init
-npx prisma studio
-```
-
-## Tests
-
-```bash
-npm test
-```
-
-## Notes
-
-- SQLite database stored at `prisma/dev.db`.
-- Update defaults (strength days, ride targets) in `/settings`.
+## Backup
+Setup → Backup saves a v3 JSON file through the Android share sheet (Drive, email, Files).
+Restore by opening the file or pasting the text. Backups from the prototype restore too.
