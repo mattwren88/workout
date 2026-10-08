@@ -40,6 +40,10 @@ export const KB_ROUTINE = [
   { key: 'kb_tgu', name: 'Turkish Get-Up', sets: 5, reps: 2, kind: 'kb', note: '1 per side each round', dflt: { lb: 25, kg: 12 } }
 ];
 
+export const CYCLE = { key: 'cycle', name: 'Cycling', kind: 'cardio' };
+export const SET_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10];
+export const REP_CHOICES = [1, 2, 3, 5, 6, 8, 10, 12, 15, 20];
+
 export const MISS_REST = 300;
 export const EXTRA_REST = 90;
 
@@ -74,7 +78,8 @@ export function fresh() {
   return {
     program: 'sl', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
     weights: defaults('lb'), fails: zeros(), deloads: zeros(), schemes: defaultSchemes(),
-    offers: {}, accs: {}, accW: {}, mode: 'bar', next: 'A', sets: {}, history: [],
+    offers: {}, accs: {}, accW: {}, accSR: {}, dayC: { kb: true, cycle: false }, cycleMins: 45,
+    cycleDone: false, mode: 'bar', next: 'A', sets: {}, history: [],
     sessionStart: null, returnSeen: null,
     // UI-only state below, never persisted
     tab: 'workout', openWarm: null, restFrom: null, restLift: null, restTarget: 180,
@@ -87,7 +92,8 @@ export function persisted(m) {
   return {
     v: 3, program: m.program, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
     weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
-    accs: m.accs, accW: m.accW, mode: m.mode, next: m.next, sets: m.sets,
+    accs: m.accs, accW: m.accW, accSR: m.accSR, dayC: m.dayC, cycleMins: m.cycleMins,
+    cycleDone: m.cycleDone, mode: m.mode, next: m.next, sets: m.sets,
     history: m.history, sessionStart: m.sessionStart, returnSeen: m.returnSeen
   };
 }
@@ -107,7 +113,12 @@ export function absorb(s, p) {
   s.offers = obj(p.offers);
   s.accs = obj(p.accs);
   s.accW = obj(p.accW);
-  s.mode = p.mode === 'kb' ? 'kb' : 'bar';
+  s.accSR = obj(p.accSR);
+  s.dayC = Object.assign({ kb: true, cycle: false }, obj(p.dayC));
+  s.cycleMins = typeof p.cycleMins === 'number' ? p.cycleMins : 45;
+  s.cycleDone = p.cycleDone === true;
+  // 'kb' was the prototype's kettlebell mode; it is now Day C.
+  s.mode = p.mode === 'kb' || p.mode === 'c' ? 'c' : 'bar';
   s.next = p.next === 'B' ? 'B' : 'A';
   s.sets = obj(p.sets);
   s.history = Array.isArray(p.history) ? p.history : [];
@@ -156,6 +167,36 @@ export class Tracker {
 
   schemeFor(id) {
     return this.state.program === 'lite' ? '2x5' : (this.state.schemes[id] || defaultSchemes()[id]);
+  }
+
+  // Library entry with the person's own sets × reps applied.
+  def(base) {
+    const o = this.state.accSR[base.key];
+    return o ? { ...base, sets: o.sets || base.sets, reps: o.reps || base.reps } : base;
+  }
+
+  cycleSR(key, field) {
+    const base = extraDef(key);
+    if (!base) return;
+    const ch = field === 'sets' ? SET_CHOICES : REP_CHOICES;
+    const cur = this.def(base)[field];
+    const i = ch.indexOf(cur);
+    const nxt = ch[(i + 1) % ch.length];
+    const accSR = { ...this.state.accSR, [key]: { ...this.def(base), [field]: nxt } };
+    accSR[key] = { sets: accSR[key].sets, reps: accSR[key].reps };
+    if (accSR[key].sets === base.sets && accSR[key].reps === base.reps) delete accSR[key];
+    const sets = { ...this.state.sets }; delete sets['x:' + key];
+    this.save({ accSR, sets });
+  }
+
+  toggleDayC(field) { this.save({ dayC: { ...this.state.dayC, [field]: !this.state.dayC[field] } }); }
+
+  adjustCycle(dir) { this.save({ cycleMins: Math.max(5, this.state.cycleMins + dir * 5) }); }
+
+  toggleCycleDone() {
+    const patch = { cycleDone: !this.state.cycleDone };
+    if (!this.state.sessionStart && patch.cycleDone) patch.sessionStart = this.now();
+    this.save(patch);
   }
 
   extraW(def) {
@@ -239,7 +280,7 @@ export class Tracker {
   }
 
   cycleAccDay(key) {
-    const order = ['', 'both', 'A', 'B'];
+    const order = ['', 'both', 'A', 'B', 'C'];
     const accs = { ...this.state.accs };
     const nxt = order[(order.indexOf(accs[key] || '') + 1) % order.length];
     if (nxt) accs[key] = nxt; else delete accs[key];
@@ -293,7 +334,15 @@ export class Tracker {
 
   activeAccs() {
     const s = this.state;
-    return ACC_LIB.filter((d) => { const day = s.accs[d.key]; return day === 'both' || day === s.next; });
+    const today = s.mode === 'c' ? 'C' : s.next;
+    return ACC_LIB.filter((d) => { const day = s.accs[d.key]; return day === today || (day === 'both' && today !== 'C'); })
+      .map((d) => this.def(d));
+  }
+
+  // Everything with set buttons on Day C, in order: kettlebell routine, then accessories.
+  dayCExtras() {
+    const kb = this.state.dayC.kb ? KB_ROUTINE.map((d) => this.def(d)) : [];
+    return kb.concat(this.activeAccs());
   }
 
   logExtra(def, arr) {
@@ -317,14 +366,18 @@ export class Tracker {
   finish() {
     const s = this.state;
     const date = new Date(this.now()).toISOString();
-    if (s.mode === 'kb') {
-      const kbLogged = KB_ROUTINE.map((d) => this.logExtra(d, s.sets['x:' + d.key] || [])).filter(Boolean);
-      if (!kbLogged.length) return;
-      const kbSets = { ...s.sets };
-      KB_ROUTINE.forEach((d) => { delete kbSets['x:' + d.key]; });
+    if (s.mode === 'c') {
+      const defs = this.dayCExtras();
+      const cLogged = defs.map((d) => this.logExtra(d, s.sets['x:' + d.key] || [])).filter(Boolean);
+      if (s.dayC.cycle && s.cycleDone) {
+        cLogged.unshift({ id: 'x:cycle', name: CYCLE.name, w: null, kind: 'cardio', weightText: s.cycleMins + ' min', reps: '', outcome: '' });
+      }
+      if (!cLogged.length) return;
+      const cSets = { ...s.sets };
+      defs.forEach((d) => { delete cSets['x:' + d.key]; });
       this.save({
-        history: [{ date, workout: 'KB', mins: this.sessionMins(), lifts: kbLogged }].concat(s.history),
-        sets: kbSets, sessionStart: null, tab: 'history', restFrom: null, restLift: null
+        history: [{ date, workout: 'C', mins: this.sessionMins(), lifts: cLogged }].concat(s.history),
+        sets: cSets, cycleDone: false, sessionStart: null, tab: 'history', restFrom: null, restLift: null
       });
       return;
     }

@@ -106,11 +106,42 @@ test('v3 backup round-trips and persists', () => {
   assert.equal(c.state.weights.squat, 50);
 });
 
-test('kettlebell day logs without touching barbell progression', () => {
+test('Day C logs kb, cycling and C accessories without touching A/B', () => {
   const t = make();
-  t.setMode('kb');
+  t.cycleAccDay('pullup'); t.cycleAccDay('pullup'); t.cycleAccDay('pullup'); t.cycleAccDay('pullup');
+  assert.equal(t.state.accs.pullup, 'C');
+  t.toggleDayC('cycle');
+  t.setMode('c');
+  assert.deepEqual(t.dayCExtras().map((d) => d.key), ['kb_halo', 'kb_goblet', 'kb_swing', 'kb_tgu', 'pullup']);
   t.tapSet('x:kb_swing', 0, 10, 10, 90);
+  t.toggleCycleDone();
   t.finish();
-  assert.equal(t.state.history[0].workout, 'KB');
+  const h = t.state.history[0];
+  assert.equal(h.workout, 'C');
+  assert.deepEqual(h.lifts.map((l) => l.name), ['Cycling', 'Two-Hand Swing']);
+  assert.equal(h.lifts[0].weightText, '45 min');
   assert.equal(t.state.next, 'A');
+  assert.equal(t.state.cycleDone, false);
+  t.setMode('bar');
+  assert.equal(t.activeAccs().length, 0); // C-only accessory stays off A/B
+});
+
+test('accessory sets × reps can be changed and survive backup', () => {
+  const t = make();
+  t.cycleAccDay('pullup'); // A + B
+  t.cycleSR('pullup', 'sets'); // 3 → 4
+  t.cycleSR('pullup', 'reps'); // 8 → 10
+  assert.deepEqual([t.activeAccs()[0].sets, t.activeAccs()[0].reps], [4, 10]);
+  const b = make();
+  b.restore(t.backupText());
+  assert.deepEqual(b.state.accSR.pullup, { sets: 4, reps: 10 });
+});
+
+test('prototype kettlebell mode restores as Day C', () => {
+  const t = make();
+  const old = JSON.parse(t.backupText());
+  old.mode = 'kb'; delete old.dayC; delete old.accSR;
+  t.restore(JSON.stringify(old));
+  assert.equal(t.state.mode, 'c');
+  assert.equal(t.state.dayC.kb, true);
 });

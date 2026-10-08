@@ -1,7 +1,7 @@
 // Turns Tracker state into HTML. Buttons carry data-act="<n>" pointing at a handler
 // collected during render; main.js dispatches clicks to them.
 import {
-  LIFTS, SCHEMES, LADDER, PLAN, ACC_LIB, KB_ROUTINE, EXTRA_REST, schemeLabel, barChoices,
+  LIFTS, SCHEMES, LADDER, PLAN, ACC_LIB, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
   fmt, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
 
@@ -47,7 +47,7 @@ export function render(t, now) {
   const s = t.state;
   const acts = [];
   const on = (fn) => { acts.push(fn); return 'data-act="' + (acts.length - 1) + '"'; };
-  const isKb = s.mode === 'kb';
+  const isC = s.mode === 'c';
   let anyLogged = false;
 
   const seg = (options, current, pick, cls = '') => options.map(([val, label]) => {
@@ -80,19 +80,19 @@ export function render(t, now) {
 
   // ---------- LOG ----------
   const logView = () => {
-    const ret = !isKb ? t.returnInfo() : null;
+    const ret = !isC ? t.returnInfo() : null;
     const other = s.next === 'A' ? 'B' : 'A';
     let html = `<header class="head">
       <div class="head__top">
-        <div><div class="eyebrow">${esc(dateText(now))} · ${isKb ? 'OFF DAY' : (s.program === 'lite' ? 'LITE 2×5' : 'STRONGLIFTS 5×5')}</div>
-        <h1 class="title">${isKb ? 'Kettlebell' : 'Day ' + s.next}</h1></div>
-        ${isKb ? '' : `<button class="btn btn--ghost btn--sm" ${on(() => t.swapWorkout())}>SWITCH → ${other}</button>`}
+        <div><div class="eyebrow">${esc(dateText(now))} · ${isC ? 'IN-BETWEEN DAY' : (s.program === 'lite' ? 'LITE 2×5' : 'STRONGLIFTS 5×5')}</div>
+        <h1 class="title">Day ${isC ? 'C' : s.next}</h1></div>
+        ${isC ? '' : `<button class="btn btn--ghost btn--sm" ${on(() => t.swapWorkout())}>SWITCH → ${other}</button>`}
       </div>
       <div class="head__meta">
         <div class="week"><span class="eyebrow">THIS WEEK</span><div class="week__days">${weekStrip(s, now)}</div></div>
         ${s.sessionStart ? `<div class="eyebrow" data-live="session">${sessionText(s, now)}</div>` : ''}
       </div>
-      <div class="grid2">${seg([['bar', 'BARBELL · DAY ' + s.next], ['kb', 'KETTLEBELL']], s.mode, (m) => t.setMode(m))}</div>
+      <div class="grid2">${seg([['bar', 'BARBELL · DAY ' + s.next], ['c', 'DAY C']], s.mode, (m) => t.setMode(m))}</div>
     </header>`;
 
     if (ret) {
@@ -104,22 +104,25 @@ export function render(t, now) {
           <button class="btn btn--outline-paper" ${on(() => t.skipReturn())}>KEEP WEIGHTS</button>
         </div></section>`;
     }
-    if (isKb) {
-      html += '<p class="note note--pad">A light session for days between lifting. Keep every set crisp and stop well short of tired, so it helps recovery instead of eating into it. Go up a bell when every set feels easy.</p>';
+    if (isC) {
+      html += '<p class="note note--pad">A light day between lifting. Keep it easy enough that it helps recovery instead of eating into it. Day C doesn\'t change the A/B rotation.</p>';
+      if (s.dayC.cycle) html += cycleCard();
+      const defs = t.dayCExtras();
+      html += defs.map((d) => extraCard(d, KB_ROUTINE.some((k) => k.key === d.key) ? INK : (d.kind === 'kb' ? KB_COLOR : ACC_COLOR))).join('');
+      if (!s.dayC.cycle && !defs.length) html += '<p class="note note--pad">Nothing on Day C yet. Turn on the kettlebell routine or cycling, or add accessories to Day C, under Setup.</p>';
     } else {
       html += PLAN[s.next].map((id) => liftCard(id)).join('');
-    }
-
-    const extraDefs = isKb ? KB_ROUTINE : t.activeAccs();
-    if (extraDefs.length) {
-      if (!isKb) html += '<div class="label label--pad">ACCESSORIES</div>';
-      html += extraDefs.map((d) => extraCard(d, isKb ? INK : (d.kind === 'kb' ? KB_COLOR : ACC_COLOR))).join('');
-    } else if (!isKb && Object.keys(s.accs).length === 0) {
-      html += '<p class="note note--pad">Add pull-ups, dips, kettlebell work and more under Setup → Accessories.</p>';
+      const extraDefs = t.activeAccs();
+      if (extraDefs.length) {
+        html += '<div class="label label--pad">ACCESSORIES</div>';
+        html += extraDefs.map((d) => extraCard(d, d.kind === 'kb' ? KB_COLOR : ACC_COLOR)).join('');
+      } else if (Object.keys(s.accs).length === 0) {
+        html += '<p class="note note--pad">Add pull-ups, dips, kettlebell work and more under Setup → Accessories.</p>';
+      }
     }
 
     html += `<div class="finish">
-      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => t.finish())}>${isKb ? 'Finish kettlebell day' : 'Finish Day ' + s.next}</button>
+      <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => t.finish())}>Finish Day ${isC ? 'C' : s.next}</button>
       <p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p></div>`;
     return html;
   };
@@ -150,6 +153,22 @@ export function render(t, now) {
         <div class="lift__tools">
           <button class="link" aria-expanded="${open}" ${on(() => t.setState({ openWarm: open ? null : id }))}>${open ? '− hide' : (w <= s.bar ? '+ plates' : '+ warm-up')}</button>
           <div class="pms">${pm(lift.name, () => t.adjust(id, -1), () => t.adjust(id, 1))}</div>
+        </div>
+      </div></section>`;
+  };
+
+  const cycleCard = () => {
+    if (s.cycleDone) anyLogged = true;
+    return `<section class="lift lift--extra">
+      <div class="stripe" style="background:${INK}"></div>
+      <div class="lift__body">
+        <div class="lift__head">
+          <div><h2 class="lift__name lift__name--sm">${CYCLE.name}</h2><div class="note">easy spin · tap when done</div></div>
+          <div class="weight weight--sm">${s.cycleMins}<span class="weight__unit"> min</span></div>
+        </div>
+        <div class="lift__foot">
+          <button class="set set--wide${s.cycleDone ? ' is-full' : ''}" aria-pressed="${s.cycleDone}" ${on(() => t.toggleCycleDone())}>${s.cycleDone ? 'DONE' : 'RIDE'}</button>
+          <div class="pms"><button class="pm" aria-label="Fewer minutes" ${on(() => t.adjustCycle(-1))}>&minus;</button><button class="pm" aria-label="More minutes" ${on(() => t.adjustCycle(1))}>+</button></div>
         </div>
       </div></section>`;
   };
@@ -192,9 +211,10 @@ export function render(t, now) {
     html += s.history.map((h, idx) => {
       const key = h.date + '|' + idx, confirming = s.confirmDel === key;
       const title = h.workout === 'KB' ? 'Kettlebell' : 'Day ' + h.workout + (h.program === 'lite' ? ' · Lite' : '');
+      const kindColor = (l) => (l.kind === 'cardio' || KB_ROUTINE.some((k) => 'x:' + k.key === l.id) ? INK : (l.kind === 'kb' ? KB_COLOR : ACC_COLOR));
       const lifts = (h.lifts || []).map((l) => {
         const m = (l.id && LIFTS[l.id]) || byName[l.name];
-        const c = m ? m.color : (l.kind === 'kb' ? KB_COLOR : ACC_COLOR);
+        const c = m ? m.color : kindColor(l);
         return `<div class="entry"><div class="stripe stripe--thin" style="background:${c}"></div>
           <div class="grow"><div class="row"><b>${esc(l.name)}</b><b class="nowrap">${esc(l.weightText)}</b></div>
           <div class="row note"><div>${esc(l.reps)}</div><div class="right">${esc(l.outcome || '')}</div></div></div></div>`;
@@ -212,7 +232,13 @@ export function render(t, now) {
   const settingsView = () => {
     const section = (label, body, note) => `<section class="block"><h2 class="label">${label}</h2>${body}${note ? `<p class="note">${note}</p>` : ''}</section>`;
     const locked = s.program === 'lite';
-    const dayNames = { '': 'OFF', both: 'A + B', A: 'DAY A', B: 'DAY B' };
+    const dayNames = { '': 'OFF', both: 'A + B', A: 'DAY A', B: 'DAY B', C: 'DAY C' };
+    const srLinks = (base) => {
+      const d = t.def(base);
+      return `<div class="cfg__links">
+        <button class="link link--sm link--muted" aria-label="${base.name} sets, now ${d.sets}. Tap to change." ${on(() => t.cycleSR(base.key, 'sets'))}>${d.sets} sets</button>
+        <button class="link link--sm link--muted" aria-label="${base.name} reps, now ${d.reps}. Tap to change." ${on(() => t.cycleSR(base.key, 'reps'))}>× ${d.reps}${base.note ? ' ' + base.note : ''}</button></div>`;
+    };
     let html = '<header class="head head--plain"><h1 class="title">Setup</h1></header>';
     html += section('PROGRAM', `<div class="grid2">${seg([['sl', 'STRONGLIFTS 5×5'], ['lite', 'LITE 2×5']], s.program, (p) => t.setProgram(p))}</div>`,
       s.program === 'lite'
@@ -234,10 +260,16 @@ export function render(t, now) {
         <div class="cfg__w">${fmt(s.weights[id])}</div>
         <button class="pm" aria-label="Raise ${l.name} weight" ${on(() => t.adjust(id, 1))}>+</button></div>`;
     }).join(''), 'Tap the sets × reps or the increment to change them. After a lift stalls through two deloads, the log offers the next lower-volume step: 5×5 → 3×5 → 3×3.');
-    html += section('ACCESSORIES', '<p class="note">Tap to add a lift to Day A, Day B or both. They log at the end of the session, with no automatic progression.</p>' + ACC_LIB.map((d) => {
+    html += section('DAY C', `<div class="grid2">
+        <button class="seg${s.dayC.kb ? ' is-on' : ''}" aria-pressed="${!!s.dayC.kb}" ${on(() => t.toggleDayC('kb'))}>KB ROUTINE</button>
+        <button class="seg${s.dayC.cycle ? ' is-on' : ''}" aria-pressed="${!!s.dayC.cycle}" ${on(() => t.toggleDayC('cycle'))}>CYCLING</button></div>
+      ${s.dayC.kb ? KB_ROUTINE.map((d) => `<div class="cfg"><div class="stripe stripe--thin" style="background:${INK}"></div>
+        <div class="grow"><b>${d.name}</b>${srLinks(d)}</div></div>`).join('') : ''}`,
+      'The in-between day. Pick what goes on it here, and add accessories to it below. Day C doesn\'t change the A/B rotation.');
+    html += section('ACCESSORIES', '<p class="note">Tap the day button to put a lift on Day A, Day B, both, or Day C. Tap sets or reps to change them. Accessories have no automatic progression.</p>' + ACC_LIB.map((d) => {
       const day = s.accs[d.key] || '';
       return `<div class="cfg"><div class="stripe stripe--thin" style="background:${d.kind === 'kb' ? KB_COLOR : ACC_COLOR}"></div>
-        <div class="grow"><b>${d.name}</b><div class="note">${d.sets}×${d.reps}${d.note ? ' ' + d.note : ''}${d.kind === 'kb' ? ' · kettlebell' : (d.kind === 'bw' ? ' · bodyweight' : '')}</div></div>
+        <div class="grow"><b>${d.name}</b>${srLinks(d)}<div class="note">${d.kind === 'kb' ? 'kettlebell' : (d.kind === 'bw' ? 'bodyweight' : 'weighted')}</div></div>
         <button class="seg seg--day${day ? ' is-on' : ''}" aria-label="${d.name}: ${day ? 'on ' + dayNames[day] : 'off'}. Tap to change." ${on(() => t.cycleAccDay(d.key))}>${dayNames[day]}</button></div>`;
     }).join(''));
     html += section('PROGRESSION', '<p>Hit every rep and the lift goes up next time. Miss reps and the weight repeats. Three misses in a row drops it 10%. After two weeks or more away, the log offers to ease you back in.</p>');
@@ -270,10 +302,11 @@ function weekStrip(s, now) {
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   const done = s.history.filter((h) => new Date(h.date) >= start).reverse();
   const chip = (label, aria, cls) => `<div class="chip ${cls}" aria-label="${aria}">${esc(label)}</div>`;
-  let html = done.map((h) => chip(h.workout, (h.workout === 'KB' ? 'Kettlebell day' : 'Day ' + h.workout) + ' done', 'is-done')).join('');
+  const label = (w) => (w === 'KB' ? 'C' : w);
+  let html = done.map((h) => chip(label(h.workout), 'Day ' + label(h.workout) + ' done', 'is-done')).join('');
   html += chip(s.next, 'Day ' + s.next + ' up next', 'is-next');
   let nextLetter = s.next === 'A' ? 'B' : 'A';
-  for (let k = done.filter((h) => h.workout !== 'KB').length + 1; k < 3; k++) {
+  for (let k = done.filter((h) => h.workout === 'A' || h.workout === 'B').length + 1; k < 3; k++) {
     html += chip(nextLetter, 'Day ' + nextLetter + ' planned', 'is-planned');
     nextLetter = nextLetter === 'A' ? 'B' : 'A';
   }
