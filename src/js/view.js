@@ -322,8 +322,8 @@ export function render(t, now) {
     gh += section('THEME', `<div class="themes">${THEMES.map((th) => {
       const sel = s.theme === th.id;
       return `<button class="theme${sel ? ' is-on' : ''}" aria-pressed="${sel}" ${on(() => t.save({ theme: th.id }))}>
-        <span class="theme__sw" style="background:${th.swatch[0]};border-color:${th.swatch[1]}"><i style="background:${th.swatch[1]}"></i><i style="background:${th.swatch[2]}"></i></span>${th.name}</button>`;
-    }).join('')}</div>`, 'Chalk is dark, for dim gyms. Lift colours stay the same in every theme.');
+        <span class="theme__sw" style="background:${th.swatch[0]};border-color:${th.swatch[1]}"><i style="background:${th.swatch[1]}"></i><i style="background:${th.swatch[2]}"></i></span><span class="theme__txt">${th.name}<small>${th.blurb}</small></span></button>`;
+    }).join('')}</div>`, 'Iron and Terminal are dark, good for dim gyms.');
     html += group('gear', 'GYM & DISPLAY', (s.unit === 'kg' ? 'kilograms' : 'pounds') + ' · ' + fmt(s.bar) + ' ' + s.unit + ' bar · ' + clock(s.restGood) + ' rest · ' + s.theme, gh);
     gh = '';
     gh += section('GOOGLE HEALTH', t.health

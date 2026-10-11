@@ -43,7 +43,7 @@ function applyTheme(name) {
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta && bg) meta.setAttribute('content', bg);
-  native.setBars(bg, name === 'chalk' || name === 'blueprint');
+  native.setBars(bg, name === 'iron' || name === 'terminal');
 }
 
 function draw() {

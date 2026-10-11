@@ -93,11 +93,13 @@ export function loadout(w, bar, pairs) {
 }
 
 export const THEMES = [
-  { id: 'ledger', name: 'LEDGER', swatch: ['#F3EEE2', '#1D1B17', '#FF5A36'] },
-  { id: 'chalk', name: 'CHALK', swatch: ['#181A19', '#F1EDE4', '#FF5A36'] },
-  { id: 'clean', name: 'CLEAN', swatch: ['#FFFFFF', '#15171A', '#2563EB'] },
-  { id: 'blueprint', name: 'BLUEPRINT', swatch: ['#10294A', '#E6EFFF', '#7FE0FF'] }
+  { id: 'ledger', name: 'LEDGER', blurb: 'Paper and ink', swatch: ['#F3EEE2', '#1D1B17', '#FF5A36'] },
+  { id: 'clean', name: 'CLEAN', blurb: 'Soft cards, round sets', swatch: ['#F2F3F5', '#FFFFFF', '#2563EB'] },
+  { id: 'iron', name: 'IRON', blurb: 'Gym poster, dark', swatch: ['#0B0B0B', '#F4F4F4', '#FFD400'] },
+  { id: 'terminal', name: 'TERMINAL', blurb: 'Green screen, dark', swatch: ['#050A06', '#3DFF7A', '#22A64C'] }
 ];
+// Earlier theme names map to their nearest replacement.
+const THEME_RENAMES = { chalk: 'iron', blueprint: 'terminal' };
 
 export const MISS_REST = 300;
 export const EXTRA_REST = 90;
@@ -174,7 +176,8 @@ export function absorb(s, p) {
   s.cycleMins = typeof p.cycleMins === 'number' ? p.cycleMins : 45;
   s.cycleDone = p.cycleDone === true;
   s.healthSync = p.healthSync === true;
-  s.theme = THEMES.some((x) => x.id === p.theme) ? p.theme : 'ledger';
+  const th = THEME_RENAMES[p.theme] || p.theme;
+  s.theme = THEMES.some((x) => x.id === th) ? th : 'ledger';
   const inv = obj(p.inventory), dInv = defaultInventory();
   s.inventory = { lb: Object.keys(obj(inv.lb)).length ? inv.lb : dInv.lb, kg: Object.keys(obj(inv.kg)).length ? inv.kg : dInv.kg };
   // 'kb' was the prototype's kettlebell mode; it is now Day C.

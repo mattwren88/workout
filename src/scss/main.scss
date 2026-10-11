@@ -1,4 +1,5 @@
 // Option D, "Color ledger". Fonts are bundled so the app works offline.
+@use "sass:meta";
 @use "fonts";
 
 :root {
@@ -14,65 +15,17 @@
   --white: #fff;  // raised surfaces: missed sets, offers, inputs
   --acc: #b8ae98;
   --kb: #5a554b;
-  --on-ink: var(--paper);
+  --fill: var(--ink);      // selected and done states
+  --on-fill: var(--paper);
   --display: "Bricolage Grotesque", sans-serif;
   --mono: "Space Mono", "Courier New", monospace;
   --radius: 6px;
 }
 
 // ---------- Themes (Setup → Gym & display → Theme) ----------
-// Chalk: dark, for dim gyms and early mornings.
-:root[data-theme="chalk"] {
-  --paper: #181a19;
-  --ink: #f1ede4;
-  --muted: #a39e93;
-  --rule: #343735;
-  --dash: #6f6c66;
-  --inset: #232625;
-  --miss: #ff6a4a;
-  --miss-text: #ff8b70;
-  --go: #8aa8ff;
-  --white: #262928;
-  --acc: #8c846f;
-  --kb: #c9c3b6;
-}
 
-// Clean: white, system sans, softer corners.
-:root[data-theme="clean"] {
-  --paper: #fff;
-  --ink: #15171a;
-  --muted: #646a73;
-  --rule: #e4e6ea;
-  --dash: #b4b9c1;
-  --inset: #f2f4f7;
-  --miss: #e5484d;
-  --miss-text: #c62a2f;
-  --go: #2563eb;
-  --white: #fff;
-  --acc: #c3c8d0;
-  --kb: #646a73;
-  --display: system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
-  --mono: system-ui, -apple-system, "Segoe UI", "Roboto", sans-serif;
-  --radius: 12px;
-}
 
-// Blueprint: navy and drafting lines, monospace throughout.
-:root[data-theme="blueprint"] {
-  --paper: #10294a;
-  --ink: #e6efff;
-  --muted: #9db3d6;
-  --rule: #2a4a75;
-  --dash: #5f7fae;
-  --inset: #173560;
-  --miss: #ff7a59;
-  --miss-text: #ffa48c;
-  --go: #7fe0ff;
-  --white: #1a3b69;
-  --acc: #6d86ad;
-  --kb: #b9c9e6;
-  --display: "Space Mono", monospace;
-  --radius: 2px;
-}
+
 
 *,
 *::before,
@@ -168,15 +121,16 @@ p { margin: 0; }
 }
 
 .btn--sm { min-height: 44px; font-size: 13px; }
-.btn--ink { background: var(--ink); color: var(--paper); }
+.btn--ink { background: var(--fill); color: var(--on-fill); border-color: var(--fill); }
 .btn--paper { background: var(--paper); color: var(--ink); border-color: var(--paper); }
 .btn--outline-paper { color: var(--paper); border-color: var(--paper); }
 .btn--danger { width: 100%; min-height: 48px; color: var(--miss-text); border-color: var(--miss-text); }
 
 .btn--finish {
   min-height: 56px;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--fill);
+  color: var(--on-fill);
+  border-color: var(--fill);
   font-family: var(--display);
   font-size: 22px;
   font-weight: 800;
@@ -193,7 +147,7 @@ p { margin: 0; }
   font-size: 13px;
   font-weight: 700;
 
-  &.is-on { background: var(--ink); color: var(--paper); }
+  &.is-on { background: var(--fill); color: var(--on-fill); border-color: var(--fill); }
 }
 
 .seg--day { min-width: 76px; min-height: 44px; }
@@ -342,7 +296,7 @@ p { margin: 0; }
   font-size: 18px;
   font-weight: 400;
 
-  &.is-full { background: var(--ink); color: var(--paper); border: 2px solid var(--ink); font-weight: 700; }
+  &.is-full { background: var(--fill); color: var(--on-fill); border: 2px solid var(--fill); font-weight: 700; }
   &.is-miss { background: var(--white); color: var(--miss-text); border: 3px solid var(--miss); font-weight: 700; }
 }
 
@@ -511,7 +465,7 @@ textarea {
   font-size: 14px;
   font-weight: 700;
 
-  &.is-on { background: var(--ink); color: var(--paper); }
+  &.is-on { background: var(--fill); color: var(--on-fill); border-color: var(--fill); }
 }
 
 .set--wide { width: auto; min-width: 96px; padding: 0 14px; font-size: 14px; letter-spacing: 0.06em; }
@@ -574,7 +528,7 @@ textarea {
   font-size: 13px;
   font-weight: 700;
 
-  &.is-on { background: var(--ink); color: var(--paper); }
+  &.is-on { background: var(--fill); color: var(--on-fill); border-color: var(--fill); }
 }
 
 .day__tick {
@@ -586,7 +540,7 @@ textarea {
   color: var(--go);
 }
 
-.day.is-on .day__tick { color: var(--paper); }
+.day.is-on .day__tick { color: var(--on-fill); }
 
 .weight--btn {
   padding: 0;
@@ -680,3 +634,9 @@ textarea {
 
   i { display: block; width: 8px; height: 18px; border-radius: 2px; }
 }
+
+.theme__txt { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+.theme__txt small { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+// Themes last so they win ties with the base styles.
+@include meta.load-css("themes");

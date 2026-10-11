@@ -20,7 +20,11 @@ const fonts = [
   'bricolage-grotesque/files/bricolage-grotesque-latin-500-normal.woff2',
   'bricolage-grotesque/files/bricolage-grotesque-latin-800-normal.woff2',
   'space-mono/files/space-mono-latin-400-normal.woff2',
-  'space-mono/files/space-mono-latin-700-normal.woff2'
+  'space-mono/files/space-mono-latin-700-normal.woff2',
+  'inter/files/inter-latin-400-normal.woff2',
+  'inter/files/inter-latin-600-normal.woff2',
+  'inter/files/inter-latin-800-normal.woff2',
+  'bebas-neue/files/bebas-neue-latin-400-normal.woff2'
 ];
 for (const f of fonts) await copyFile(`node_modules/@fontsource/${f}`, `${out}/fonts/${f.split('/').pop()}`);
 
