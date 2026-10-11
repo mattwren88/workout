@@ -1,6 +1,7 @@
-node_modules
-.next
+node_modules/
+www/
+preview/
 .DS_Store
-prisma/dev.db
-prisma/dev.db-journal
-.env
+*.keystore
+*.jks
+android/keystore.properties

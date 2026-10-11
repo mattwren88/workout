@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>5x5 Lifting Tracker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&amp;family=Space+Mono:wght@400;700&amp;display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+button:disabled{cursor:default}
+button:focus-visible,textarea:focus-visible{outline:3px solid #2D5BFF;outline-offset:2px}
+a{color:#1D1B17}a:hover{color:#5A554B}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F3EEE2; color: #1D1B17; font-family: 'Space Mono', 'Courier New', monospace; font-size: 14px; line-height: 1.4">
+
+<main style="flex: 1; min-height: 0; overflow-y: auto; padding: 28px 20px 20px; display: flex; flex-direction: column; gap: 0">
+
+<sc-if value="{{ isWorkout }}" hint-placeholder-val="{{ true }}">
+<header style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 14px; border-bottom: 2px solid #1D1B17">
+<div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 0">
+<div style="font-size: 12px; color: #5A554B; letter-spacing: 0.08em; text-transform: uppercase">{{ today }} · {{ programShort }}</div>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 46px; letter-spacing: -0.03em; line-height: 0.95">{{ dayTitle }}</h1>
+</div>
+<sc-if value="{{ isBarMode }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ swapWorkout }}" style="min-height: 44px; padding: 0 14px; background: transparent; color: #1D1B17; border: 2px solid #1D1B17; border-radius: 6px; font-size: 13px; font-weight: 700">SWITCH → {{ other }}</button>
+</sc-if>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: #5A554B">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="letter-spacing: 0.08em">THIS WEEK</div>
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{ week }}" as="d" hint-placeholder-count="3">
+<div aria-label="{{ d.aria }}" style="min-width: 30px; height: 22px; padding: 0 4px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: {{ d.bg }}; color: {{ d.fg }}; border: {{ d.border }}; border-radius: 4px; font-weight: {{ d.weight }}">{{ d.label }}</div>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ inSession }}" hint-placeholder-val="{{ false }}">
+<div style="letter-spacing: 0.06em">{{ sessionText }}</div>
+</sc-if>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ modeOptions }}" as="u" hint-placeholder-count="2">
+<button onClick="{{ u.pick }}" aria-pressed="{{ u.on }}" style="min-height: 44px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ u.bg }}; color: {{ u.fg }}; font-size: 13px; font-weight: 700">{{ u.label }}</button>
+</sc-for>
+</div>
+</header>
+
+<sc-if value="{{ showReturn }}" hint-placeholder-val="{{ false }}">
+<section style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding: 14px; background: #1D1B17; color: #F3EEE2; border-radius: 8px">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.01em">Welcome back</div>
+<div style="font-size: 13px">{{ returnText }}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button onClick="{{ applyReturn }}" style="min-height: 44px; border: 2px solid #F3EEE2; border-radius: 6px; background: #F3EEE2; color: #1D1B17; font-size: 13px; font-weight: 700">EASE BACK IN</button>
+<button onClick="{{ skipReturn }}" style="min-height: 44px; border: 2px solid #F3EEE2; border-radius: 6px; background: transparent; color: #F3EEE2; font-size: 13px; font-weight: 700">KEEP WEIGHTS</button>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{ isKbMode }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 14px 0 2px; font-size: 12px; color: #5A554B">A light session for days between lifting. Keep every set crisp and stop well short of tired, so it helps recovery instead of eating into it. Go up a bell when every set feels easy.</div>
+</sc-if>
+
+<sc-for list="{{ exercises }}" as="ex" hint-placeholder-count="3">
+<section style="display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<div style="flex: 0 0 8px; border-radius: 4px; background: {{ ex.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 0; min-width: 0">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">{{ ex.name }}</h2>
+<div style="font-size: 12px; color: #5A554B">{{ ex.scheme }}</div>
+</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap">{{ ex.weightText }}<span style="font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 400; letter-spacing: 0"> {{ unit }}</span></div>
+</div>
+
+<sc-if value="{{ ex.offer }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #FFFFFF; border: 2px solid #1D1B17; border-radius: 6px">
+<div style="font-size: 13px">{{ ex.offerText }}</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button onClick="{{ ex.acceptOffer }}" style="min-height: 44px; border: 2px solid #1D1B17; border-radius: 6px; background: #1D1B17; color: #F3EEE2; font-size: 13px; font-weight: 700">SWITCH TO {{ ex.offerLabel }}</button>
+<button onClick="{{ ex.declineOffer }}" style="min-height: 44px; border: 2px solid #1D1B17; border-radius: 6px; background: transparent; color: #1D1B17; font-size: 13px; font-weight: 700">NOT NOW</button>
+</div>
+</div>
+</sc-if>
+
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{ ex.sets }}" as="s" hint-placeholder-count="5">
+<button onClick="{{ s.tap }}" aria-label="Set {{ s.n }}: {{ s.aria }}" style="width: 50px; height: 50px; flex: 0 0 auto; box-sizing: border-box; border: {{ s.border }}; border-radius: 6px; background: {{ s.bg }}; color: {{ s.fg }}; font-size: 18px; font-weight: {{ s.weight }}">{{ s.label }}</button>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; font-size: 12px; color: #5A554B">
+<div>{{ ex.last }}</div>
+<sc-if value="{{ ex.showRest }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ clearRest }}" aria-label="Rest {{ restClock }}. Tap to clear." style="min-height: 32px; padding: 0 4px; background: transparent; border: 0; color: {{ restColor }}; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap">{{ restLabel }}</button>
+</sc-if>
+</div>
+
+<sc-if value="{{ ex.warmOpen }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; padding: 8px 10px; background: #E9E2D2; border-radius: 6px">
+<div style="display: grid; grid-template-columns: 44px 56px 1fr; gap: 6px; font-size: 11px; color: #5A554B; letter-spacing: 0.06em; padding: 2px 0 4px"><div>SETS</div><div>{{ unitUpper }}</div><div>PLATES / SIDE</div></div>
+<sc-for list="{{ ex.warmups }}" as="w" hint-placeholder-count="5">
+<div style="display: grid; grid-template-columns: 44px 56px 1fr; gap: 6px; font-size: 13px; color: {{ w.fg }}; font-weight: {{ w.weight }}; padding: 2px 0"><div>{{ w.reps }}</div><div>{{ w.weightText }}</div><div>{{ w.plates }}</div></div>
+</sc-for>
+</div>
+</sc-if>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<button onClick="{{ ex.toggleWarm }}" aria-expanded="{{ ex.warmOpen }}" style="min-height: 44px; padding: 0 2px; background: transparent; border: 0; color: #1D1B17; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px">{{ ex.warmToggleText }}</button>
+<div style="display: flex; gap: 6px">
+<button onClick="{{ ex.minus }}" aria-label="Lower {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">&minus;</button>
+<button onClick="{{ ex.plus }}" aria-label="Raise {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">+</button>
+</div>
+</div>
+</div>
+</section>
+</sc-for>
+
+<sc-if value="{{ hasExtras }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ isBarMode }}" hint-placeholder-val="{{ true }}">
+<div style="padding: 18px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">ACCESSORIES</div>
+</sc-if>
+<sc-for list="{{ extras }}" as="ex" hint-placeholder-count="2">
+<section style="display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #CDC3AE">
+<div style="flex: 0 0 8px; border-radius: 4px; background: {{ ex.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px">
+<div style="display: flex; flex-direction: column; gap: 0; min-width: 0">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: -0.02em">{{ ex.name }}</h2>
+<div style="font-size: 12px; color: #5A554B">{{ ex.scheme }}</div>
+</div>
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap">{{ ex.weightText }}<span style="font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 400; letter-spacing: 0"> {{ ex.unitText }}</span></div>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<sc-for list="{{ ex.sets }}" as="s" hint-placeholder-count="3">
+<button onClick="{{ s.tap }}" aria-label="Set {{ s.n }}: {{ s.aria }}" style="width: 44px; height: 44px; flex: 0 0 auto; box-sizing: border-box; border: {{ s.border }}; border-radius: 6px; background: {{ s.bg }}; color: {{ s.fg }}; font-size: 16px; font-weight: {{ s.weight }}">{{ s.label }}</button>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #5A554B">
+<div>{{ ex.last }}</div>
+<sc-if value="{{ ex.showRest }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ clearRest }}" aria-label="Rest {{ restClock }}. Tap to clear." style="min-height: 32px; padding: 0 4px; background: transparent; border: 0; color: {{ restColor }}; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap">{{ restLabel }}</button>
+</sc-if>
+<sc-if value="{{ ex.hasWeight }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; gap: 6px">
+<button onClick="{{ ex.minus }}" aria-label="Lower {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">&minus;</button>
+<button onClick="{{ ex.plus }}" aria-label="Raise {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">+</button>
+</div>
+</sc-if>
+</div>
+</div>
+</section>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ noAccessories }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 14px 0 0; font-size: 12px; color: #5A554B">Add pull-ups, dips, kettlebell work and more under Setup → Accessories.</div>
+</sc-if>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding-top: 20px">
+<button onClick="{{ finish }}" disabled="{{ cannotFinish }}" style="min-height: 56px; border: 2px solid {{ finishBd }}; border-radius: 6px; background: {{ finishBg }}; color: {{ finishFg }}; font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.01em">{{ finishLabel }}</button>
+<div style="font-size: 12px; color: #5A554B; text-align: center">Tap a set when you hit every rep. Tap again to count down missed reps.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHistory }}" hint-placeholder-val="{{ false }}">
+<header style="padding-bottom: 14px; border-bottom: 2px solid #1D1B17">
+<div style="font-size: 12px; color: #5A554B; letter-spacing: 0.08em">{{ historyCount }}</div>
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 46px; letter-spacing: -0.03em; line-height: 0.95">History</h1>
+</header>
+
+<sc-if value="{{ noHistory }}" hint-placeholder-val="{{ false }}">
+<div style="padding: 20px 0; color: #5A554B">No sessions logged yet. Finish one and it lands here with the weight for next time.</div>
+</sc-if>
+
+<sc-if value="{{ hasProgress }}" hint-placeholder-val="{{ false }}">
+<section style="display: flex; flex-direction: column; gap: 0; padding: 16px 0 8px; border-bottom: 2px solid #1D1B17">
+<h2 style="margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">PROGRESS</h2>
+<sc-for list="{{ progress }}" as="p" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 12px; padding: 8px 0">
+<div style="flex: 0 0 6px; align-self: stretch; border-radius: 3px; background: {{ p.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -0.01em">{{ p.name }}</div>
+<div style="font-size: 12px; color: #5A554B">{{ p.delta }}</div>
+</div>
+<svg width="110" height="36" viewBox="0 0 110 36" role="img" aria-label="{{ p.aria }}">
+<title>{{ p.aria }}</title>
+<polyline points="{{ p.points }}" style="fill: none; stroke: {{ p.stroke }}; stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round"></polyline>
+<circle cx="{{ p.endX }}" cy="{{ p.endY }}" r="4" style="fill: {{ p.stroke }}; stroke: #F3EEE2; stroke-width: 2px"></circle>
+</svg>
+<div style="min-width: 48px; text-align: right; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20px">{{ p.current }}</div>
+</div>
+</sc-for>
+</section>
+</sc-if>
+
+<sc-for list="{{ history }}" as="h" hint-placeholder-count="2">
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px">
+<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">{{ h.title }}</h2>
+<div style="font-size: 12px; color: #5A554B; letter-spacing: 0.06em; text-transform: uppercase">{{ h.meta }}</div>
+</div>
+<sc-for list="{{ h.lifts }}" as="l" hint-placeholder-count="3">
+<div style="display: flex; gap: 12px">
+<div style="flex: 0 0 6px; border-radius: 3px; background: {{ l.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0">
+<div style="display: flex; justify-content: space-between; gap: 8px">
+<div style="font-weight: 700">{{ l.name }}</div>
+<div style="font-weight: 700; white-space: nowrap">{{ l.weightText }}</div>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #5A554B">
+<div>{{ l.reps }}</div>
+<div style="text-align: right">{{ l.outcome }}</div>
+</div>
+</div>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: flex-end">
+<button onClick="{{ h.del }}" style="min-height: 36px; padding: 0 2px; background: transparent; border: 0; color: {{ h.delColor }}; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 4px">{{ h.delLabel }}</button>
+</div>
+</section>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<header style="padding-bottom: 14px; border-bottom: 2px solid #1D1B17">
+<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 46px; letter-spacing: -0.03em; line-height: 0.95">Setup</h1>
+</header>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">PROGRAM</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ programOptions }}" as="u" hint-placeholder-count="2">
+<button onClick="{{ u.pick }}" aria-pressed="{{ u.on }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ u.bg }}; color: {{ u.fg }}; font-size: 14px; font-weight: 700">{{ u.label }}</button>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5A554B">{{ programNote }}</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">UNITS</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ unitOptions }}" as="u" hint-placeholder-count="2">
+<button onClick="{{ u.pick }}" aria-pressed="{{ u.on }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ u.bg }}; color: {{ u.fg }}; font-size: 14px; font-weight: 700">{{ u.label }}</button>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5A554B">Switching converts your working weights and rounds them to plates and bells you can load.</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">BAR WEIGHT</h2>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ barOptions }}" as="u" hint-placeholder-count="3">
+<button onClick="{{ u.pick }}" aria-pressed="{{ u.on }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ u.bg }}; color: {{ u.fg }}; font-size: 14px; font-weight: 700">{{ u.label }}</button>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5A554B">Used for warm-ups and the plate math.</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">REST AFTER A GOOD SET</h2>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ restOptions }}" as="u" hint-placeholder-count="3">
+<button onClick="{{ u.pick }}" aria-pressed="{{ u.on }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ u.bg }}; color: {{ u.fg }}; font-size: 14px; font-weight: 700">{{ u.label }}</button>
+</sc-for>
+</div>
+<div style="font-size: 12px; color: #5A554B">After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up, where supported.</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 0; padding: 16px 0 4px; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">MAIN LIFTS</h2>
+<sc-for list="{{ allLifts }}" as="ex" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 10px; padding: 6px 0">
+<div style="flex: 0 0 6px; align-self: stretch; border-radius: 3px; background: {{ ex.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start">
+<div style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -0.01em">{{ ex.name }}</div>
+<div style="display: flex; gap: 10px">
+<button onClick="{{ ex.cycleScheme }}" disabled="{{ ex.schemeLocked }}" aria-label="Change {{ ex.name }} sets and reps, now {{ ex.schemeText }}" style="min-height: 32px; padding: 0; background: transparent; border: 0; color: #5A554B; font-size: 12px; text-decoration: {{ ex.schemeDeco }}; text-underline-offset: 3px">{{ ex.schemeText }}</button>
+<button onClick="{{ ex.cycleInc }}" aria-label="Change {{ ex.name }} increment, now {{ ex.incText }}" style="min-height: 32px; padding: 0; background: transparent; border: 0; color: #5A554B; font-size: 12px; text-decoration: underline; text-underline-offset: 3px">{{ ex.incText }}</button>
+</div>
+</div>
+<button onClick="{{ ex.minus }}" aria-label="Lower {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">&minus;</button>
+<div style="min-width: 52px; text-align: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 22px">{{ ex.weightText }}</div>
+<button onClick="{{ ex.plus }}" aria-label="Raise {{ ex.name }} weight" style="width: 44px; height: 44px; background: transparent; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-size: 20px; line-height: 1">+</button>
+</div>
+</sc-for>
+<div style="font-size: 12px; color: #5A554B; padding: 6px 0 10px">Tap the sets × reps or the increment to change them. After a lift stalls through two deloads, the log offers the next lower-volume step: 5×5 → 3×5 → 3×3.</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 0; padding: 16px 0 4px; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">ACCESSORIES</h2>
+<div style="font-size: 12px; color: #5A554B; padding-bottom: 6px">Tap to add a lift to Day A, Day B or both. They log at the end of the session, with no automatic progression.</div>
+<sc-for list="{{ accLibrary }}" as="a" hint-placeholder-count="6">
+<div style="display: flex; align-items: center; gap: 10px; padding: 4px 0">
+<div style="flex: 0 0 6px; align-self: stretch; border-radius: 3px; background: {{ a.color }}"></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+<div style="font-weight: 700">{{ a.name }}</div>
+<div style="font-size: 12px; color: #5A554B">{{ a.scheme }}</div>
+</div>
+<button onClick="{{ a.cycle }}" aria-label="{{ a.name }}: {{ a.aria }}. Tap to change." style="min-width: 72px; min-height: 44px; border: 2px solid #1D1B17; border-radius: 6px; background: {{ a.bg }}; color: {{ a.fg }}; font-size: 13px; font-weight: 700">{{ a.dayLabel }}</button>
+</div>
+</sc-for>
+<div style="height: 10px"></div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 6px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">PROGRESSION</h2>
+<div style="font-size: 13px">Hit every rep and the lift goes up next time. Miss reps and the weight repeats. Three misses in a row drops it 10%. After two weeks or more away, the log offers to ease you back in.</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; padding: 16px 0; border-bottom: 1px solid #CDC3AE">
+<h2 style="margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: #5A554B">BACKUP</h2>
+<div style="font-size: 12px; color: #5A554B">Your log lives in this browser. Copy the backup somewhere safe, or paste one in to restore.</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button onClick="{{ copyBackup }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: #1D1B17; color: #F3EEE2; font-size: 14px; font-weight: 700">COPY BACKUP</button>
+<button onClick="{{ toggleBackup }}" aria-expanded="{{ backupOpen }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: transparent; color: #1D1B17; font-size: 14px; font-weight: 700">{{ backupToggleText }}</button>
+</div>
+<sc-if value="{{ hasBackupMsg }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="font-size: 12px; font-weight: 700; color: {{ backupMsgColor }}">{{ backupMsg }}</div>
+</sc-if>
+<sc-if value="{{ backupOpen }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 11px; color: #5A554B; letter-spacing: 0.06em">CURRENT BACKUP</div>
+<div style="max-height: 96px; overflow: auto; padding: 8px 10px; background: #E9E2D2; border-radius: 6px; font-size: 11px; line-height: 1.35; word-break: break-all; user-select: all">{{ exportText }}</div>
+<label for="restore-box" style="font-size: 11px; color: #5A554B; letter-spacing: 0.06em; padding-top: 4px">PASTE A BACKUP TO RESTORE</label>
+<textarea id="restore-box" onChange="{{ importChange }}" rows="4" style="box-sizing: border-box; width: 100%; padding: 8px 10px; background: #FFFFFF; color: #1D1B17; border: 1.5px solid #8C8576; border-radius: 6px; font-family: 'Space Mono', monospace; font-size: 12px; resize: vertical"></textarea>
+<button onClick="{{ doImport }}" style="min-height: 46px; border: 2px solid #1D1B17; border-radius: 6px; background: transparent; color: #1D1B17; font-size: 14px; font-weight: 700">RESTORE FROM BACKUP</button>
+</div>
+</sc-if>
+</section>
+
+<div style="padding-top: 20px">
+<button onClick="{{ reset }}" style="width: 100%; min-height: 48px; background: transparent; color: #B32A0E; border: 2px solid #B32A0E; border-radius: 6px; font-size: 14px; font-weight: 700">{{ resetLabel }}</button>
+</div>
+</sc-if>
+
+</main>
+
+<nav aria-label="Sections" style="flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px 16px 16px; border-top: 2px solid #1D1B17; background: #F3EEE2">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+<button onClick="{{ t.go }}" aria-current="{{ t.current }}" style="min-height: 46px; border: 0; border-radius: 6px; background: {{ t.bg }}; color: {{ t.fg }}; font-size: 14px; font-weight: 700">{{ t.label }}</button>
+</sc-for>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  state = this.load();
+
+  key() { return 'fivebyfive.v1'; }
+
+  lifts() {
+    return {
+      squat: { name: 'Squat', barWarm: true, color: '#FF5A36', stroke: '#D9401E' },
+      bench: { name: 'Bench Press', barWarm: true, color: '#2D5BFF', stroke: '#2D5BFF' },
+      row: { name: 'Barbell Row', barWarm: false, color: '#F2B800', stroke: '#B88A00' },
+      ohp: { name: 'Overhead Press', barWarm: true, color: '#1FA57A', stroke: '#178A65' },
+      dead: { name: 'Deadlift', barWarm: false, color: '#9B6BFF', stroke: '#7A48E6' }
+    };
+  }
+
+  schemes() {
+    return {
+      '5x5': { sets: 5, reps: 5 }, '3x5': { sets: 3, reps: 5 }, '3x3': { sets: 3, reps: 3 },
+      '1x5': { sets: 1, reps: 5 }, '1x3': { sets: 1, reps: 3 }, '2x5': { sets: 2, reps: 5 }
+    };
+  }
+  ladder() { return { '5x5': '3x5', '3x5': '3x3', '1x5': '1x3' }; }
+  schemeCycle(id) { return id === 'dead' ? ['1x5', '1x3'] : ['5x5', '3x5', '3x3']; }
+  schemeLabel(k) { return k.replace('x', '×'); }
+  defaultSchemes() { return { squat: '5x5', bench: '5x5', row: '5x5', ohp: '5x5', dead: '1x5' }; }
+  schemeFor(id) { return this.state.program === 'lite' ? '2x5' : (this.state.schemes[id] || this.defaultSchemes()[id]); }
+
+  plan() { return { A: ['squat', 'bench', 'row'], B: ['squat', 'ohp', 'dead'] }; }
+
+  accLib() {
+    return [
+      { key: 'pullup', name: 'Pull-ups', sets: 3, reps: 8, kind: 'bw' },
+      { key: 'chinup', name: 'Chin-ups', sets: 3, reps: 8, kind: 'bw' },
+      { key: 'dip', name: 'Dips', sets: 3, reps: 8, kind: 'bw' },
+      { key: 'pushup', name: 'Push-ups', sets: 3, reps: 10, kind: 'bw' },
+      { key: 'facepull', name: 'Face Pulls', sets: 3, reps: 12, kind: 'wt', dflt: { lb: 30, kg: 12.5 } },
+      { key: 'curl', name: 'Barbell Curls', sets: 3, reps: 10, kind: 'wt', dflt: { lb: 45, kg: 20 } },
+      { key: 'tricep', name: 'Triceps Extensions', sets: 3, reps: 10, kind: 'wt', dflt: { lb: 25, kg: 10 } },
+      { key: 'kbswing', name: 'KB Swings', sets: 5, reps: 10, kind: 'kb', dflt: { lb: 35, kg: 16 } },
+      { key: 'goblet', name: 'Goblet Squats', sets: 3, reps: 8, kind: 'kb', dflt: { lb: 35, kg: 16 } },
+      { key: 'kbrow', name: 'KB Rows', sets: 3, reps: 8, kind: 'kb', note: 'per side', dflt: { lb: 35, kg: 16 } },
+      { key: 'kbpress', name: 'KB Press', sets: 3, reps: 5, kind: 'kb', note: 'per side', dflt: { lb: 25, kg: 12 } }
+    ];
+  }
+
+  kbRoutine() {
+    return [
+      { key: 'kb_halo', name: 'Halos', sets: 2, reps: 5, kind: 'kb', note: 'warm-up · each direction', dflt: { lb: 15, kg: 8 } },
+      { key: 'kb_goblet', name: 'Goblet Squat', sets: 3, reps: 5, kind: 'kb', note: 'slow, sit deep', dflt: { lb: 35, kg: 16 } },
+      { key: 'kb_swing', name: 'Two-Hand Swing', sets: 10, reps: 10, kind: 'kb', note: 'snap the hips, rest as needed', dflt: { lb: 35, kg: 16 } },
+      { key: 'kb_tgu', name: 'Turkish Get-Up', sets: 5, reps: 2, kind: 'kb', note: '1 per side each round', dflt: { lb: 25, kg: 12 } }
+    ];
+  }
+
+  defaults(unit) {
+    return unit === 'kg'
+      ? { squat: 20, bench: 20, row: 30, ohp: 20, dead: 40 }
+      : { squat: 45, bench: 45, row: 65, ohp: 45, dead: 95 };
+  }
+
+  defaultIncs(unit) {
+    return unit === 'kg'
+      ? { squat: 2.5, bench: 2.5, row: 2.5, ohp: 2.5, dead: 5 }
+      : { squat: 5, bench: 5, row: 5, ohp: 5, dead: 10 };
+  }
+
+  zeros() { return { squat: 0, bench: 0, row: 0, ohp: 0, dead: 0 }; }
+  incChoices(unit) { return unit === 'kg' ? [1.25, 2.5, 5] : [2.5, 5, 10]; }
+  barChoices(unit) { return unit === 'kg' ? [20, 15, 10] : [45, 35, 33]; }
+
+  fresh() {
+    return {
+      program: 'sl',
+      unit: 'lb',
+      bar: 45,
+      incs: this.defaultIncs('lb'),
+      restGood: 180,
+      weights: this.defaults('lb'),
+      fails: this.zeros(),
+      deloads: this.zeros(),
+      schemes: this.defaultSchemes(),
+      offers: {},
+      accs: {},
+      accW: {},
+      mode: 'bar',
+      next: 'A',
+      sets: {},
+      history: [],
+      sessionStart: null,
+      returnSeen: null,
+      tab: 'workout',
+      openWarm: null,
+      restFrom: null,
+      restLift: null,
+      restTarget: 180,
+      confirmReset: false,
+      confirmDel: null,
+      backupOpen: false,
+      backupMsg: '',
+      backupOk: true,
+      importText: ''
+    };
+  }
+
+  persisted(m) {
+    return {
+      v: 3, program: m.program, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
+      weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
+      accs: m.accs, accW: m.accW, mode: m.mode, next: m.next, sets: m.sets,
+      history: m.history, sessionStart: m.sessionStart, returnSeen: m.returnSeen
+    };
+  }
+
+  absorb(s, p) {
+    if (!p || typeof p !== 'object' || !p.weights || (p.unit !== 'lb' && p.unit !== 'kg')) return false;
+    var obj = function (x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; };
+    s.program = p.program === 'lite' ? 'lite' : 'sl';
+    s.unit = p.unit;
+    s.bar = typeof p.bar === 'number' ? p.bar : (p.unit === 'kg' ? 20 : 45);
+    s.incs = Object.assign(this.defaultIncs(p.unit), obj(p.incs));
+    s.restGood = typeof p.restGood === 'number' ? p.restGood : 180;
+    s.weights = Object.assign(this.defaults(p.unit), p.weights);
+    s.fails = Object.assign(this.zeros(), obj(p.fails));
+    s.deloads = Object.assign(this.zeros(), obj(p.deloads));
+    s.schemes = Object.assign(this.defaultSchemes(), obj(p.schemes));
+    s.offers = obj(p.offers);
+    s.accs = obj(p.accs);
+    s.accW = obj(p.accW);
+    s.mode = p.mode === 'kb' ? 'kb' : 'bar';
+    s.next = p.next === 'B' ? 'B' : 'A';
+    s.sets = obj(p.sets);
+    s.history = Array.isArray(p.history) ? p.history : [];
+    s.sessionStart = typeof p.sessionStart === 'number' ? p.sessionStart : null;
+    s.returnSeen = typeof p.returnSeen === 'string' ? p.returnSeen : null;
+    return true;
+  }
+
+  load() {
+    var s = this.fresh();
+    try {
+      var raw = window.localStorage.getItem(this.key());
+      if (raw) this.absorb(s, JSON.parse(raw));
+    } catch (e) {}
+    return s;
+  }
+
+  save(patch) {
+    var m = Object.assign({}, this.state, patch);
+    try { window.localStorage.setItem(this.key(), JSON.stringify(this.persisted(m))); } catch (e) {}
+    this.setState(patch);
+  }
+
+  componentDidMount() {
+    var self = this;
+    this.tick = setInterval(function () {
+      var s = self.state;
+      if (s.restFrom) {
+        var secs = (Date.now() - s.restFrom) / 1000;
+        if (secs >= s.restTarget && self.buzzedFor !== s.restFrom) {
+          self.buzzedFor = s.restFrom;
+          try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+        }
+      }
+      if (s.restFrom || (s.sessionStart && s.tab === 'workout')) self.forceUpdate();
+    }, 1000);
+  }
+
+  componentWillUnmount() { clearInterval(this.tick); }
+
+  step(unit) { return unit === 'kg' ? 2.5 : 5; }
+  extraStep(kind, unit) { return kind === 'kb' ? (unit === 'kg' ? 4 : 5) : (unit === 'kg' ? 2.5 : 5); }
+  roundTo(x, step) { return Math.round(x / step) * step; }
+  fmt(n) { return String(Math.round(n * 100) / 100); }
+  clock(secs) { var m = Math.floor(secs / 60), ss = secs % 60; return m + ':' + (ss < 10 ? '0' : '') + ss; }
+
+  extraDef(key) {
+    var all = this.accLib().concat(this.kbRoutine());
+    for (var i = 0; i < all.length; i++) if (all[i].key === key) return all[i];
+    return null;
+  }
+
+  extraW(def) {
+    var v = this.state.accW[def.key];
+    return typeof v === 'number' ? v : (def.dflt ? def.dflt[this.state.unit] : 0);
+  }
+
+  plates(w, unit) {
+    var side = (w - this.state.bar) / 2;
+    if (side <= 0) return 'bar';
+    var sizes = unit === 'kg' ? [20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5];
+    var out = [];
+    for (var i = 0; i < sizes.length; i++) {
+      while (side >= sizes[i] - 0.001) { out.push(this.fmt(sizes[i])); side -= sizes[i]; }
+    }
+    if (side > 0.01) out.push('+' + this.fmt(side));
+    return out.join(' ');
+  }
+
+  warmups(id, w, unit) {
+    var lift = this.lifts()[id];
+    var bar = this.state.bar, step = this.step(unit);
+    var rows = [];
+    if (w > bar) {
+      if (lift.barWarm) rows.push({ w: bar, reps: '2×5' });
+      var ramp = [[0.4, 5], [0.6, 3], [0.8, 2]];
+      var last = bar;
+      for (var i = 0; i < ramp.length; i++) {
+        var x = this.roundTo(w * ramp[i][0], step);
+        if (x > last && x < w) { rows.push({ w: x, reps: '1×' + ramp[i][1] }); last = x; }
+      }
+    }
+    var self = this;
+    var list = rows.map(function (r) {
+      return { reps: r.reps, weightText: self.fmt(r.w), plates: self.plates(r.w, unit), fg: '#5A554B', weight: 400 };
+    });
+    list.push({ reps: this.schemeLabel(this.schemeFor(id)), weightText: this.fmt(w), plates: this.plates(w, unit), fg: '#1D1B17', weight: 700 });
+    return list;
+  }
+
+  adjust(id, dir) {
+    var s = this.state;
+    var w = Object.assign({}, s.weights);
+    var inc = Math.min(s.incs[id], this.step(s.unit));
+    w[id] = Math.max(s.bar, Math.round((w[id] + dir * inc) * 100) / 100);
+    this.save({ weights: w });
+  }
+
+  adjustExtra(def, dir) {
+    var s = this.state, step = this.extraStep(def.kind, s.unit);
+    var accW = Object.assign({}, s.accW);
+    accW[def.key] = Math.max(step, Math.round((this.extraW(def) + dir * step) * 100) / 100);
+    this.save({ accW: accW });
+  }
+
+  cycleInc(id) {
+    var s = this.state, ch = this.incChoices(s.unit);
+    var i = ch.indexOf(s.incs[id]);
+    var incs = Object.assign({}, s.incs);
+    incs[id] = ch[(i + 1) % ch.length];
+    this.save({ incs: incs });
+  }
+
+  cycleScheme(id) {
+    var s = this.state, ch = this.schemeCycle(id);
+    var i = ch.indexOf(s.schemes[id]);
+    var schemes = Object.assign({}, s.schemes);
+    schemes[id] = ch[(i + 1) % ch.length];
+    var offers = Object.assign({}, s.offers);
+    delete offers[id];
+    var sets = Object.assign({}, s.sets);
+    delete sets[id];
+    this.save({ schemes: schemes, offers: offers, sets: sets });
+  }
+
+  acceptOffer(id) {
+    var s = this.state, nextScheme = this.ladder()[s.schemes[id]];
+    if (!nextScheme) return;
+    var schemes = Object.assign({}, s.schemes); schemes[id] = nextScheme;
+    var offers = Object.assign({}, s.offers); delete offers[id];
+    var deloads = Object.assign({}, s.deloads); deloads[id] = 0;
+    var fails = Object.assign({}, s.fails); fails[id] = 0;
+    var sets = Object.assign({}, s.sets); delete sets[id];
+    this.save({ schemes: schemes, offers: offers, deloads: deloads, fails: fails, sets: sets });
+  }
+
+  declineOffer(id) {
+    var offers = Object.assign({}, this.state.offers); delete offers[id];
+    this.save({ offers: offers });
+  }
+
+  cycleAccDay(key) {
+    var order = ['', 'both', 'A', 'B'];
+    var accs = Object.assign({}, this.state.accs);
+    var cur = accs[key] || '';
+    var nxt = order[(order.indexOf(cur) + 1) % order.length];
+    if (nxt) accs[key] = nxt; else delete accs[key];
+    this.save({ accs: accs });
+  }
+
+  tapSet(key, i, n, target, restFull) {
+    var s = this.state;
+    var sets = Object.assign({}, s.sets);
+    var arr = (sets[key] || []).slice();
+    while (arr.length < n) arr.push(null);
+    var v = arr[i];
+    var nv = v == null ? target : (v === 0 ? null : v - 1);
+    arr[i] = nv;
+    sets[key] = arr;
+    var patch = { sets: sets };
+    if (!s.sessionStart && nv != null) patch.sessionStart = Date.now();
+    if (nv != null) {
+      patch.restLift = key;
+      patch.restTarget = nv === target ? restFull : 300;
+      if (!(s.restLift === key && s.restFrom && v != null)) patch.restFrom = Date.now();
+    }
+    this.save(patch);
+  }
+
+  setUnit(unit) {
+    var s = this.state;
+    if (unit === s.unit) return;
+    var step = this.step(unit), bar = unit === 'kg' ? 20 : 45, w = {}, self = this;
+    var conv = function (x) { return unit === 'kg' ? x / 2.20462 : x * 2.20462; };
+    for (var id in s.weights) w[id] = Math.max(bar, this.roundTo(conv(s.weights[id]), step));
+    var accW = {};
+    Object.keys(s.accW).forEach(function (k) {
+      var def = self.extraDef(k);
+      if (!def) return;
+      var st = self.extraStep(def.kind, unit);
+      accW[k] = Math.max(st, self.roundTo(conv(s.accW[k]), st));
+    });
+    this.save({ unit: unit, weights: w, bar: bar, incs: this.defaultIncs(unit), accW: accW });
+  }
+
+  activeAccs() {
+    var s = this.state, lib = this.accLib();
+    return lib.filter(function (d) { var day = s.accs[d.key]; return day === 'both' || day === s.next; });
+  }
+
+  logExtra(def, arr) {
+    var s = this.state, any = false, reps = [];
+    for (var i = 0; i < def.sets; i++) { var v = arr[i]; if (v != null) any = true; reps.push(v == null ? 0 : v); }
+    if (!any) return null;
+    var w = def.kind === 'bw' ? null : this.extraW(def);
+    return {
+      id: 'x:' + def.key, name: def.name, w: w, unit: s.unit, kind: def.kind,
+      weightText: w == null ? 'bodyweight' : this.fmt(w) + ' ' + s.unit,
+      reps: reps.join(' '), outcome: ''
+    };
+  }
+
+  finish() {
+    var s = this.state, self = this;
+    if (s.mode === 'kb') {
+      var kbLogged = [];
+      this.kbRoutine().forEach(function (d) { var e = self.logExtra(d, s.sets['x:' + d.key] || []); if (e) kbLogged.push(e); });
+      if (!kbLogged.length) return;
+      var kbSets = Object.assign({}, s.sets);
+      this.kbRoutine().forEach(function (d) { delete kbSets['x:' + d.key]; });
+      var kmins = s.sessionStart ? Math.max(1, Math.round((Date.now() - s.sessionStart) / 60000)) : null;
+      this.save({
+        history: [{ date: new Date().toISOString(), workout: 'KB', mins: kmins, lifts: kbLogged }].concat(s.history),
+        sets: kbSets, sessionStart: null, tab: 'history', restFrom: null, restLift: null
+      });
+      return;
+    }
+    var lifts = this.lifts(), schemes = this.schemes(), ids = this.plan()[s.next];
+    var weights = Object.assign({}, s.weights), fails = Object.assign({}, s.fails);
+    var deloads = Object.assign({}, s.deloads), offers = Object.assign({}, s.offers);
+    var logged = [];
+    for (var k = 0; k < ids.length; k++) {
+      var id = ids[k], lift = lifts[id], arr = s.sets[id] || [];
+      var sk = this.schemeFor(id), sc = schemes[sk];
+      var any = false, reps = [], ok = true;
+      for (var i = 0; i < sc.sets; i++) {
+        var v = arr[i];
+        if (v != null) any = true;
+        reps.push(v == null ? 0 : v);
+        if (v !== sc.reps) ok = false;
+      }
+      if (!any) continue;
+      var w = weights[id], outcome;
+      if (ok) {
+        weights[id] = Math.round((w + s.incs[id]) * 100) / 100;
+        fails[id] = 0;
+        outcome = 'next ' + this.fmt(weights[id]);
+      } else {
+        fails[id] = (fails[id] || 0) + 1;
+        if (fails[id] >= 3) {
+          weights[id] = Math.max(s.bar, this.roundTo(w * 0.9, this.step(s.unit)));
+          fails[id] = 0;
+          deloads[id] = (deloads[id] || 0) + 1;
+          outcome = 'deload to ' + this.fmt(weights[id]);
+          if (s.program === 'sl' && deloads[id] >= 2 && this.ladder()[sk]) offers[id] = true;
+        } else {
+          outcome = 'repeat · miss ' + fails[id] + '/3';
+        }
+      }
+      logged.push({ id: id, name: lift.name, w: w, unit: s.unit, ok: ok, scheme: sk, weightText: this.fmt(w) + ' ' + s.unit, reps: reps.join(' '), outcome: outcome });
+    }
+    this.activeAccs().forEach(function (d) { var e = self.logExtra(d, s.sets['x:' + d.key] || []); if (e) logged.push(e); });
+    if (!logged.length) return;
+    var mins = s.sessionStart ? Math.max(1, Math.round((Date.now() - s.sessionStart) / 60000)) : null;
+    var history = [{ date: new Date().toISOString(), workout: s.next, program: s.program, mins: mins, lifts: logged }].concat(s.history);
+    this.save({
+      weights: weights, fails: fails, deloads: deloads, offers: offers, history: history, sets: {}, sessionStart: null,
+      next: s.next === 'A' ? 'B' : 'A', tab: 'history', openWarm: null, restFrom: null, restLift: null
+    });
+  }
+
+  returnInfo() {
+    var s = this.state;
+    if (!s.history.length) return null;
+    var lastDate = s.history[0].date;
+    if (s.returnSeen === lastDate) return null;
+    var days = Math.floor((Date.now() - new Date(lastDate).getTime()) / 86400000);
+    if (!(days >= 14)) return null;
+    var pct = days >= 56 ? 30 : (days >= 28 ? 20 : 10);
+    return { days: days, pct: pct, lastDate: lastDate };
+  }
+
+  applyReturn() {
+    var info = this.returnInfo();
+    if (!info) return;
+    var s = this.state, w = {};
+    for (var id in s.weights) w[id] = Math.max(s.bar, this.roundTo(s.weights[id] * (1 - info.pct / 100), this.step(s.unit)));
+    this.save({ weights: w, fails: this.zeros(), returnSeen: info.lastDate });
+  }
+
+  dateText(iso) {
+    try { return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); } catch (e) { return ''; }
+  }
+
+  shortDate(iso) {
+    try { return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) { return ''; }
+  }
+
+  liftEntry(l, id, name) { return l.id === id || (!l.id && l.name === name); }
+  entryWeight(l) { return typeof l.w === 'number' ? l.w : parseFloat(l.weightText); }
+  entryUnit(l, fallback) { return l.unit || (/kg/.test(l.weightText || '') ? 'kg' : (l.weightText ? 'lb' : fallback)); }
+
+  lastFor(id, name) {
+    var h = this.state.history;
+    for (var i = 0; i < h.length; i++) {
+      var ls = h[i].lifts || [];
+      for (var j = 0; j < ls.length; j++) if (this.liftEntry(ls[j], id, name)) return ls[j];
+    }
+    return null;
+  }
+
+  lastText(prev, target) {
+    if (!prev) return 'first session';
+    var digits = (prev.reps || '').replace(/[^0-9 ]/g, '').trim().split(/\s+/);
+    var allHit = prev.ok === true || (digits.length > 0 && digits.every(function (c) { return Number(c) === target; }));
+    var pw = this.entryWeight(prev);
+    var wt = prev.w === null ? 'bw' : (isNaN(pw) ? '' : this.fmt(pw));
+    return 'last: ' + wt + ' · ' + (allHit ? 'all ' + target + 's' : (prev.reps || '').replace(/ · /g, ' '));
+  }
+
+  weekStrip() {
+    var s = this.state;
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    var done = s.history.filter(function (h) { return new Date(h.date) >= start; }).reverse();
+    var strip = done.map(function (h) {
+      return { label: h.workout, aria: (h.workout === 'KB' ? 'Kettlebell day' : 'Day ' + h.workout) + ' done', bg: '#1D1B17', fg: '#F3EEE2', border: '2px solid #1D1B17', weight: 700 };
+    });
+    strip.push({ label: s.next, aria: 'Day ' + s.next + ' up next', bg: 'transparent', fg: '#1D1B17', border: '2px solid #1D1B17', weight: 700 });
+    var barDone = done.filter(function (h) { return h.workout !== 'KB'; }).length;
+    var nextLetter = s.next === 'A' ? 'B' : 'A';
+    for (var k = barDone + 1; k < 3; k++) {
+      strip.push({ label: nextLetter, aria: 'Day ' + nextLetter + ' planned', bg: 'transparent', fg: '#5A554B', border: '1.5px dashed #8C8576', weight: 400 });
+      nextLetter = nextLetter === 'A' ? 'B' : 'A';
+    }
+    return strip;
+  }
+
+  progressRows() {
+    var self = this, s = this.state, lifts = this.lifts();
+    var chrono = s.history.slice().reverse();
+    var rows = [];
+    Object.keys(lifts).forEach(function (id) {
+      var lift = lifts[id], pts = [];
+      chrono.forEach(function (h) {
+        (h.lifts || []).forEach(function (l) {
+          if (self.liftEntry(l, id, lift.name) && self.entryUnit(l, s.unit) === s.unit) {
+            var w = self.entryWeight(l);
+            if (!isNaN(w)) pts.push({ w: w, date: h.date });
+          }
+        });
+      });
+      if (!pts.length) return;
+      var shown = pts.slice(-12);
+      var W = 110, H = 36, pad = 5;
+      var min = Infinity, max = -Infinity;
+      shown.forEach(function (p) { min = Math.min(min, p.w); max = Math.max(max, p.w); });
+      var coords = shown.map(function (p, i) {
+        var x = shown.length === 1 ? W - pad : pad + (i / (shown.length - 1)) * (W - pad * 2);
+        var y = max === min ? H / 2 : pad + (1 - (p.w - min) / (max - min)) * (H - pad * 2);
+        return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+      });
+      if (coords.length === 1) coords.unshift([pad, coords[0][1]]);
+      var end = coords[coords.length - 1];
+      var first = pts[0].w, current = s.weights[id], diff = Math.round((current - first) * 100) / 100;
+      rows.push({
+        name: lift.name, color: lift.color, stroke: lift.stroke,
+        points: coords.map(function (c) { return c[0] + ',' + c[1]; }).join(' '),
+        endX: end[0], endY: end[1],
+        current: self.fmt(current),
+        delta: (diff > 0 ? '+' : '') + self.fmt(diff) + ' ' + s.unit + ' since ' + self.shortDate(pts[0].date),
+        aria: lift.name + ': ' + pts.length + ' sessions, from ' + self.fmt(first) + ' to ' + self.fmt(pts[pts.length - 1].w) + ' ' + s.unit + ', next ' + self.fmt(current)
+      });
+    });
+    return rows;
+  }
+
+  seg(options, current, pick) {
+    return options.map(function (o) {
+      var on = o[0] === current;
+      return {
+        label: o[1], on: on,
+        bg: on ? '#1D1B17' : 'transparent', fg: on ? '#F3EEE2' : '#1D1B17',
+        pick: function () { pick(o[0]); }
+      };
+    });
+  }
+
+  setButtons(key, n, target, restFull, size) {
+    var self = this, s = this.state, arr = s.sets[key] || [], out = [], ink = '#1D1B17', paper = '#F3EEE2';
+    var logged = false;
+    for (var i = 0; i < n; i++) {
+      (function (i) {
+        var v = arr[i];
+        if (v != null) logged = true;
+        var full = v === target, missed = v != null && v < target;
+        out.push({
+          n: i + 1,
+          label: v == null ? String(target) : String(v),
+          aria: v == null ? 'not done' : v + ' of ' + target + ' reps',
+          bg: full ? ink : (missed ? '#FFFFFF' : 'transparent'),
+          fg: full ? paper : (missed ? '#B32A0E' : '#5A554B'),
+          border: full ? '2px solid ' + ink : (missed ? '3px solid #E0401C' : '1.5px dashed #8C8576'),
+          weight: v == null ? 400 : 700,
+          tap: function () { self.tapSet(key, i, n, target, restFull); }
+        });
+      })(i);
+    }
+    return { list: out, logged: logged };
+  }
+
+  extraCard(def, color) {
+    var self = this, s = this.state, key = 'x:' + def.key;
+    var b = this.setButtons(key, def.sets, def.reps, 90);
+    var hasWeight = def.kind !== 'bw';
+    var w = this.extraW(def);
+    var prev = this.lastFor(key, def.name);
+    return {
+      logged: b.logged,
+      card: {
+        name: def.name,
+        color: color,
+        scheme: def.sets + '×' + def.reps + (def.note ? ' · ' + def.note : ''),
+        weightText: hasWeight ? this.fmt(w) : 'BW',
+        unitText: hasWeight ? s.unit : '',
+        hasWeight: hasWeight,
+        sets: b.list,
+        last: this.lastText(prev, def.reps),
+        showRest: !!s.restFrom && s.restLift === key,
+        minus: function () { self.adjustExtra(def, -1); },
+        plus: function () { self.adjustExtra(def, 1); }
+      }
+    };
+  }
+
+  renderVals() {
+    var self = this, s = this.state, lifts = this.lifts(), schemes = this.schemes();
+    var anyLogged = false;
+    var ink = '#1D1B17', paper = '#F3EEE2';
+    var isKb = s.mode === 'kb';
+
+    var byName = {};
+    Object.keys(lifts).forEach(function (id) { byName[lifts[id].name] = lifts[id]; });
+
+    var exercises = isKb ? [] : this.plan()[s.next].map(function (id) {
+      var lift = lifts[id], w = s.weights[id];
+      var sk = self.schemeFor(id), sc = schemes[sk];
+      var b = self.setButtons(id, sc.sets, sc.reps, s.restGood);
+      if (b.logged) anyLogged = true;
+      var open = s.openWarm === id;
+      var last = self.lastText(self.lastFor(id, lift.name), sc.reps);
+      if (s.fails[id] > 0) last += ' · miss ' + s.fails[id] + '/3';
+      var noWarm = w <= s.bar;
+      var nextScheme = self.ladder()[sk];
+      return {
+        name: lift.name,
+        color: lift.color,
+        scheme: self.schemeLabel(sk) + (s.deloads[id] > 0 && s.program === 'sl' ? ' · deloads ' + s.deloads[id] : ''),
+        weightText: self.fmt(w),
+        sets: b.list,
+        last: last,
+        showRest: !!s.restFrom && s.restLift === id,
+        offer: !!s.offers[id] && !!nextScheme && s.program === 'sl',
+        offerText: 'This lift has stalled through two deloads. Fewer sets usually gets it moving again.',
+        offerLabel: nextScheme ? self.schemeLabel(nextScheme) : '',
+        acceptOffer: function () { self.acceptOffer(id); },
+        declineOffer: function () { self.declineOffer(id); },
+        minus: function () { self.adjust(id, -1); },
+        plus: function () { self.adjust(id, 1); },
+        warmOpen: open,
+        warmToggleText: open ? '− hide' : (noWarm ? '+ plates' : '+ warm-up'),
+        toggleWarm: function () { self.setState({ openWarm: open ? null : id }); },
+        warmups: self.warmups(id, w, s.unit)
+      };
+    });
+
+    var extraDefs = isKb ? this.kbRoutine() : this.activeAccs();
+    var extras = extraDefs.map(function (d) {
+      var r = self.extraCard(d, isKb ? '#1D1B17' : (d.kind === 'kb' ? '#5A554B' : '#B8AE98'));
+      if (r.logged) anyLogged = true;
+      return r.card;
+    });
+
+    var allLifts = Object.keys(lifts).map(function (id) {
+      var locked = s.program === 'lite';
+      return {
+        name: lifts[id].name,
+        color: lifts[id].color,
+        schemeText: self.schemeLabel(self.schemeFor(id)),
+        schemeLocked: locked,
+        schemeDeco: locked ? 'none' : 'underline',
+        cycleScheme: function () { self.cycleScheme(id); },
+        incText: '+' + self.fmt(s.incs[id]) + ' ' + s.unit + ' / session',
+        cycleInc: function () { self.cycleInc(id); },
+        weightText: self.fmt(s.weights[id]),
+        minus: function () { self.adjust(id, -1); },
+        plus: function () { self.adjust(id, 1); }
+      };
+    });
+
+    var dayNames = { '': 'OFF', both: 'A + B', A: 'DAY A', B: 'DAY B' };
+    var accLibrary = this.accLib().map(function (d) {
+      var day = s.accs[d.key] || '';
+      var on = !!day;
+      return {
+        name: d.name,
+        color: d.kind === 'kb' ? '#5A554B' : '#B8AE98',
+        scheme: d.sets + '×' + d.reps + (d.note ? ' ' + d.note : '') + (d.kind === 'kb' ? ' · kettlebell' : (d.kind === 'bw' ? ' · bodyweight' : '')),
+        dayLabel: dayNames[day],
+        aria: on ? 'on ' + dayNames[day] : 'off',
+        bg: on ? ink : 'transparent',
+        fg: on ? paper : ink,
+        cycle: function () { self.cycleAccDay(d.key); }
+      };
+    });
+
+    var history = s.history.map(function (h, idx) {
+      var key = h.date + '|' + idx;
+      var confirming = s.confirmDel === key;
+      var title = h.workout === 'KB' ? 'Kettlebell' : 'Day ' + h.workout + (h.program === 'lite' ? ' · Lite' : '');
+      var meta = self.dateText(h.date) + (h.mins ? ' · ' + h.mins + ' min' : '');
+      return {
+        title: title,
+        meta: meta,
+        lifts: (h.lifts || []).map(function (l) {
+          var m = (l.id && lifts[l.id]) || byName[l.name];
+          var c = m ? m.color : (l.kind === 'kb' ? '#5A554B' : '#B8AE98');
+          return Object.assign({}, l, { color: c, outcome: l.outcome || '' });
+        }),
+        delLabel: confirming ? 'TAP AGAIN TO DELETE' : 'DELETE',
+        delColor: confirming ? '#B32A0E' : '#5A554B',
+        del: function () {
+          if (!confirming) { self.setState({ confirmDel: key }); return; }
+          var next = s.history.slice();
+          next.splice(idx, 1);
+          self.save({ history: next, confirmDel: null });
+        }
+      };
+    });
+
+    var progress = s.tab === 'history' ? this.progressRows() : [];
+
+    var tabs = [['workout', 'LOG'], ['history', 'HISTORY'], ['settings', 'SETUP']].map(function (t) {
+      var on = s.tab === t[0];
+      return {
+        label: t[1], current: on ? 'page' : 'false',
+        bg: on ? ink : 'transparent', fg: on ? paper : ink,
+        go: function () { self.setState({ tab: t[0], confirmReset: false, confirmDel: null, backupMsg: '' }); }
+      };
+    });
+
+    var ret = !isKb ? this.returnInfo() : null;
+    var restSecs = s.restFrom ? Math.max(0, Math.floor((Date.now() - s.restFrom) / 1000)) : 0;
+    var restUp = restSecs >= s.restTarget;
+    var sessSecs = s.sessionStart ? Math.max(0, Math.floor((Date.now() - s.sessionStart) / 1000)) : 0;
+    var n = s.history.length;
+    var exportText = '';
+    if (s.tab === 'settings' && s.backupOpen) exportText = JSON.stringify(this.persisted(s));
+
+    return {
+      unit: s.unit,
+      unitUpper: s.unit.toUpperCase(),
+      next: s.next,
+      other: s.next === 'A' ? 'B' : 'A',
+      today: this.dateText(new Date().toISOString()),
+      programShort: isKb ? 'OFF DAY' : (s.program === 'lite' ? 'LITE 2×5' : 'STRONGLIFTS 5×5'),
+      dayTitle: isKb ? 'Kettlebell' : 'Day ' + s.next,
+      isBarMode: !isKb,
+      isKbMode: isKb,
+      modeOptions: this.seg([['bar', 'BARBELL · DAY ' + s.next], ['kb', 'KETTLEBELL']], s.mode, function (m) { self.save({ mode: m, restFrom: null, restLift: null }); }),
+      week: this.weekStrip(),
+      inSession: !!s.sessionStart,
+      sessionText: Math.floor(sessSecs / 60) + ' MIN IN',
+      showReturn: !!ret,
+      returnText: ret ? ret.days + ' days since your last session. Take ' + ret.pct + '% off every main lift and build back up from there?' : '',
+      applyReturn: function () { self.applyReturn(); },
+      skipReturn: function () { if (ret) self.save({ returnSeen: ret.lastDate }); },
+      isWorkout: s.tab === 'workout',
+      isHistory: s.tab === 'history',
+      isSettings: s.tab === 'settings',
+      exercises: exercises,
+      extras: extras,
+      hasExtras: extras.length > 0,
+      noAccessories: !isKb && extras.length === 0 && Object.keys(s.accs).length === 0,
+      allLifts: allLifts,
+      accLibrary: accLibrary,
+      history: history,
+      progress: progress,
+      hasProgress: progress.length > 0,
+      noHistory: n === 0,
+      historyCount: n + (n === 1 ? ' SESSION' : ' SESSIONS'),
+      tabs: tabs,
+      programOptions: this.seg([['sl', 'STRONGLIFTS 5×5'], ['lite', 'LITE 2×5']], s.program, function (p) { self.save({ program: p, sets: {}, offers: {} }); }),
+      programNote: s.program === 'lite'
+        ? 'Same lifts and progression with two sets each. Half the volume, for when recovery is short, like a heavy cycling block.'
+        : 'Classic 5×5 on squat, bench, row and press, 1×5 deadlift. Alternate Day A and Day B.',
+      unitOptions: this.seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, function (u) { self.setUnit(u); }),
+      barOptions: this.seg(this.barChoices(s.unit).map(function (b) { return [b, b + ' ' + s.unit]; }), s.bar, function (b) { self.save({ bar: b }); }),
+      restOptions: this.seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, function (r) { self.save({ restGood: r }); }),
+      restClock: this.clock(restSecs),
+      restLabel: restUp ? 'GO · ' + this.clock(restSecs) : 'REST ' + this.clock(restSecs) + ' / ' + this.clock(s.restTarget),
+      restColor: restUp ? '#1E44D6' : '#B32A0E',
+      clearRest: function () { self.setState({ restFrom: null, restLift: null }); },
+      swapWorkout: function () {
+        self.save({ next: s.next === 'A' ? 'B' : 'A', sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
+      },
+      finish: function () { self.finish(); },
+      finishLabel: isKb ? 'Finish kettlebell day' : 'Finish Day ' + s.next,
+      cannotFinish: !anyLogged,
+      finishBg: anyLogged ? ink : 'transparent',
+      finishFg: anyLogged ? paper : '#5A554B',
+      finishBd: anyLogged ? ink : '#CDC3AE',
+      backupOpen: !!s.backupOpen,
+      backupToggleText: s.backupOpen ? 'HIDE' : 'RESTORE',
+      toggleBackup: function () { self.setState({ backupOpen: !s.backupOpen, backupMsg: '' }); },
+      exportText: exportText,
+      hasBackupMsg: !!s.backupMsg,
+      backupMsg: s.backupMsg,
+      backupMsgColor: s.backupOk ? '#1D1B17' : '#B32A0E',
+      copyBackup: function () {
+        var text = JSON.stringify(self.persisted(self.state));
+        var fail = function () { self.setState({ backupOpen: true, backupOk: false, backupMsg: 'Could not copy here. Select the backup text below and copy it.' }); };
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              self.setState({ backupOk: true, backupMsg: 'Backup copied. Paste it into a note or email to yourself.' });
+            }, fail);
+          } else { fail(); }
+        } catch (e) { fail(); }
+      },
+      importChange: function (e) { self.setState({ importText: e && e.target ? e.target.value : '' }); },
+      doImport: function () {
+        var f = self.fresh();
+        var ok = false;
+        try { ok = self.absorb(f, JSON.parse(self.state.importText)); } catch (e) { ok = false; }
+        if (!ok) { self.setState({ backupOk: false, backupMsg: 'That does not look like a backup from this app.' }); return; }
+        var patch = self.persisted(f);
+        delete patch.v;
+        patch.backupOk = true;
+        patch.backupMsg = 'Restored ' + f.history.length + ' sessions.';
+        self.save(patch);
+      },
+      resetLabel: s.confirmReset ? 'TAP AGAIN TO ERASE EVERYTHING' : 'RESET ALL DATA',
+      reset: function () {
+        if (!s.confirmReset) { self.setState({ confirmReset: true }); return; }
+        var f = self.fresh();
+        f.tab = 'settings';
+        self.save(f);
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
