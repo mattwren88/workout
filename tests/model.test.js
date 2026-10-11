@@ -242,3 +242,13 @@ test('switching programs keeps weights and picks a valid day', () => {
   t.setProgram('sl');
   assert.equal(t.state.next, 'A');
 });
+
+test('program guide recommendations', async () => {
+  const { recommend } = await import('../src/js/programs.js');
+  assert.equal(recommend({}, 0).id, 'sl');
+  assert.equal(recommend({}, 2).id, 'madcow'); // log shows stalls
+  assert.equal(recommend({ exp: 'stalled', style: 'heavy' }, 0).id, 'texas');
+  assert.equal(recommend({ exp: 'new' }, 3).id, 'sl'); // answer beats log
+  assert.equal(recommend({ exp: 'stalled', rec: 'low' }, 0).id, 'lite');
+  assert.equal(recommend({ exp: 'back' }, 0).id, 'sl');
+});

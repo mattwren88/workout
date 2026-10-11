@@ -114,3 +114,61 @@ export function planFor(s, day, schemeFor) {
     { id: 'dead', label: '1×5', sets: sets(1, 5, W.dead), top: W.dead, progress: { type: 'inc', idx: [0] } }
   ];
 }
+
+// ---------- "Which program?" guide ----------
+export const GUIDE = {
+  sl: {
+    who: 'New to barbells, or back after a long break.',
+    week: '3 days · A/B alternate', time: '45–60 min',
+    upside: 'Fastest progress you’ll ever make: weight goes up every session.',
+    catch: 'Linear gains run out, usually press first, then bench and squat.'
+  },
+  lite: {
+    who: 'Lifting alongside a lot of other training, like a cycling block, or short on sleep and time.',
+    week: '3 days · A/B alternate', time: '25–35 min',
+    upside: 'Same progression with half the sets, so it leaves energy for everything else.',
+    catch: 'Less volume means slower strength gains and an earlier stall.'
+  },
+  madcow: {
+    who: 'Finished linear progress: lifts keep stalling and deloading on 5×5.',
+    week: '3 days · Mon heavy, Wed light, Fri top triple', time: '60–75 min',
+    upside: 'Ramping sets double as warm-ups and the jumps are small, so it’s forgiving. Expect a PR every week.',
+    catch: 'Progress is weekly (about 2.5%), and Friday is a long session.'
+  },
+  texas: {
+    who: 'Finished linear progress and recovers well: sleeping and eating enough.',
+    week: '3 days · Mon volume, Wed recovery, Fri 5-rep PR', time: '60–90 min',
+    upside: 'A new 5-rep best every Friday, which is very motivating while it lasts.',
+    catch: 'Monday’s 5×5 at 90% is hard, and it’s easy to burn out if recovery slips.'
+  }
+};
+
+export const QUIZ = [
+  { key: 'exp', q: 'Where are you with barbell training?', options: [
+    ['new', 'New, or under ~6 months'], ['back', 'Coming back after time off'], ['stalled', 'Stalling on 5×5 despite deloads']] },
+  { key: 'rec', q: 'How much else is on your plate?', options: [
+    ['ok', 'Lifting is my main training'], ['low', 'Lots of other training, or short on sleep']] },
+  { key: 'style', q: 'Which sounds better?', options: [
+    ['ramp', 'Building up through lighter sets'], ['heavy', 'One heavy all-out set a week']] }
+];
+
+/**
+ * answers: { exp, rec, style } (any may be missing). stalls: main lifts with
+ * two or more deloads in the log. Returns { id, why }.
+ */
+export function recommend(answers, stalls) {
+  const a = answers || {};
+  const stalled = a.exp === 'stalled' || (!a.exp && stalls >= 2);
+  if (a.rec === 'low') {
+    return { id: 'lite', why: 'With a lot of other training going on, half the volume keeps you progressing without digging a recovery hole.' };
+  }
+  if (stalled) {
+    return a.style === 'heavy'
+      ? { id: 'texas', why: 'Linear progress has run its course, and you like a heavy top set. Texas gives you a 5-rep PR every Friday.' }
+      : { id: 'madcow', why: 'Linear progress has run its course. Madcow moves to weekly progress with gentle ramps, the easier step up.' };
+  }
+  if (a.exp === 'back') {
+    return { id: 'sl', why: 'Coming back, strength returns fastest with session-to-session progress. Take the ease-back offer on the Log page first.' };
+  }
+  return { id: 'sl', why: 'Adding weight every session is the fastest way to get strong while it still works.' };
+}

@@ -4,7 +4,7 @@ import {
   LIFTS, LADDER, ACC_LIB, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
   fmt, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
-import { PROGRAMS, DAY_TITLES, DAY_SUBTITLES, isLinear, daysFor } from './programs.js';
+import { PROGRAMS, DAY_TITLES, DAY_SUBTITLES, isLinear, daysFor, GUIDE, QUIZ, recommend } from './programs.js';
 
 const ACC_COLOR = '#B8AE98';
 const KB_COLOR = '#5A554B';
@@ -258,7 +258,8 @@ export function render(t, now) {
     };
     let html = '<header class="head head--plain"><h1 class="title">Setup</h1></header>';
     html += section('PROGRAM', `<div class="grid2">${seg(Object.keys(PROGRAMS).map((k) => [k, PROGRAMS[k].name]), s.program, (p) => t.setProgram(p))}</div>`,
-      PROGRAMS[s.program].note + ' Switching keeps your weights and history.');
+      PROGRAMS[s.program].note + ' Switching keeps your weights and history.' +
+      `</p><button class="link" ${on(() => t.setState({ tab: 'programs' }))}>Which program is right for me? →</button><p class="note">`);
     html += section('UNITS', `<div class="grid2">${seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, (u) => t.setUnit(u))}</div>`,
       'Switching converts your working weights and rounds them to plates and bells you can load.');
     html += section('BAR WEIGHT', `<div class="grid3">${seg(barChoices(s.unit).map((b) => [b, b + ' ' + s.unit]), s.bar, (b) => t.save({ bar: b }))}</div>`,
@@ -316,9 +317,45 @@ export function render(t, now) {
     return html;
   };
 
-  const body = s.tab === 'history' ? historyView() : (s.tab === 'settings' ? settingsView() : logView());
+  // ---------- WHICH PROGRAM ----------
+  const programsView = () => {
+    const quiz = s.quiz || {};
+    const stalls = Object.keys(LIFTS).filter((id) => (s.deloads[id] || 0) >= 2).length;
+    const rec = recommend(quiz, stalls);
+    let html = `<header class="head head--plain">
+      <button class="link link--sm" ${on(() => t.setState({ tab: 'settings' }))}>← SETUP</button>
+      <h1 class="title">Which program?</h1></header>`;
+    html += QUIZ.map((item) => `<section class="block"><h2 class="label">${item.q.toUpperCase()}</h2>
+      <div class="stack">${item.options.map(([val, label]) => {
+        const sel = quiz[item.key] === val;
+        return `<button class="seg seg--left${sel ? ' is-on' : ''}" aria-pressed="${sel}" ${on(() => t.setState({ quiz: { ...quiz, [item.key]: sel ? undefined : val } }))}>${label}</button>`;
+      }).join('')}</div></section>`).join('');
+    const current = rec.id === s.program;
+    html += `<section class="callout">
+      <div class="eyebrow eyebrow--paper">SUGGESTED FOR YOU</div>
+      <div class="callout__title">${PROGRAMS[rec.id].name}</div>
+      <div>${rec.why}${stalls >= 2 && !quiz.exp ? ` Your log shows ${stalls} lifts that have deloaded twice.` : ''}</div>
+      ${current ? '<div><b>You’re already on it.</b></div>' : `<button class="btn btn--paper" ${on(() => { t.setProgram(rec.id); t.setState({ tab: 'workout' }); })}>USE ${PROGRAMS[rec.id].name}</button>`}
+    </section>`;
+    html += '<div class="label label--pad">ALL PROGRAMS</div>';
+    html += Object.keys(PROGRAMS).map((k) => {
+      const g = GUIDE[k], on_ = s.program === k;
+      return `<section class="session">
+        <div class="row row--base"><h2 class="lift__name lift__name--sm">${PROGRAMS[k].name}</h2>${on_ ? '<div class="eyebrow">CURRENT</div>' : ''}</div>
+        <p><b>For:</b> ${g.who}</p>
+        <p class="note">${g.week} · ${g.time}</p>
+        <p><b>Upside:</b> ${g.upside}</p>
+        <p><b>Catch:</b> ${g.catch}</p>
+        ${on_ ? '' : `<div class="right"><button class="link link--sm" ${on(() => { t.setProgram(k); t.setState({ tab: 'workout' }); })}>USE THIS</button></div>`}
+      </section>`;
+    }).join('');
+    html += '<p class="note note--pad">Switching keeps your weights and history; check the weights under Setup → Main lifts afterwards, since each program reads them a little differently. Session times include warm-ups and rest and are rough.</p>';
+    return html;
+  };
+
+  const body = s.tab === 'programs' ? programsView() : s.tab === 'history' ? historyView() : (s.tab === 'settings' ? settingsView() : logView());
   const tabs = [['workout', 'LOG'], ['history', 'HISTORY'], ['settings', 'SETUP']].map(([k, label]) => {
-    const cur = s.tab === k;
+    const cur = s.tab === k || (k === 'settings' && s.tab === 'programs');
     return `<button class="tab${cur ? ' is-on' : ''}" aria-current="${cur ? 'page' : 'false'}" ${on(() => t.setState({ tab: k, confirmReset: false, confirmDel: null, backupMsg: '' }))}>${label}</button>`;
   }).join('');
 

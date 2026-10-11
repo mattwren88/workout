@@ -83,7 +83,8 @@ document.addEventListener('visibilitychange', () => {
 native.init({
   onBack() {
     const s = tracker.state;
-    if (s.tab !== 'workout') tracker.setState({ tab: 'workout' });
+    if (s.tab === 'programs') tracker.setState({ tab: 'settings' });
+    else if (s.tab !== 'workout') tracker.setState({ tab: 'workout' });
     else native.minimize();
   }
 });

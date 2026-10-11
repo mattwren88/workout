@@ -464,3 +464,9 @@ textarea {
 
 .head__top .btn--sm { white-space: nowrap; flex: 0 0 auto; }
 .head__top .title { font-size: clamp(34px, 10.5vw, 46px); }
+
+.seg--left { text-align: left; padding: 0 14px; font-weight: 400; }
+.seg--left.is-on { font-weight: 700; }
+.eyebrow--paper { color: var(--paper); opacity: 0.8; }
+.session p { font-size: 13px; }
+.head .link { align-self: flex-start; padding: 0; }
