@@ -252,3 +252,21 @@ test('program guide recommendations', async () => {
   assert.equal(recommend({ exp: 'stalled', rec: 'low' }, 0).id, 'lite');
   assert.equal(recommend({ exp: 'back' }, 0).id, 'sl');
 });
+
+test('plate loadout respects the inventory', async () => {
+  const { loadout } = await import('../src/js/model.js');
+  assert.deepEqual(loadout(225, 45, { 45: 8, 25: 2, 10: 2, 5: 2, 2.5: 2 }).plates, [45, 45]);
+  // No 35s: 115 per side... 155 total → 55/side = 45 + 10
+  assert.deepEqual(loadout(155, 45, { 45: 8, 10: 2 }).plates, [45, 10]);
+  // Greedy would fail here (45+? for 50/side); exact answer uses 25+25
+  assert.deepEqual(loadout(145, 45, { 45: 1, 25: 2 }).plates, [25, 25]);
+  // Not loadable: heaviest under target
+  const r = loadout(137.5, 45, { 45: 4, 10: 2, 5: 2 });
+  assert.equal(r.exact, false);
+  assert.equal(r.total, 135);
+  // Runs out of plates
+  assert.equal(loadout(405, 45, { 45: 2 }).total, 225);
+  const t = make();
+  t.setPairs(2.5, -2);
+  assert.equal(t.plates(140), '45 · closest 135'); // no 2.5s left
+});

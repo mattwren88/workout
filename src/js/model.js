@@ -50,6 +50,48 @@ export const CYCLE = { key: 'cycle', name: 'Cycling', kind: 'cardio' };
 export const SET_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10];
 export const REP_CHOICES = [1, 2, 3, 5, 6, 8, 10, 12, 15, 20];
 
+// Plates a gym might have, per unit, and a typical commercial-gym starting set (pairs).
+export const PLATE_SIZES = {
+  lb: [55, 45, 35, 25, 15, 10, 5, 2.5, 1.25, 1, 0.5, 0.25],
+  kg: [25, 20, 15, 10, 5, 2.5, 2, 1.25, 1, 0.5, 0.25]
+};
+export const defaultInventory = () => ({
+  lb: { 45: 8, 35: 2, 25: 2, 10: 2, 5: 2, 2.5: 2 },
+  kg: { 20: 8, 15: 2, 10: 2, 5: 2, 2.5: 2, 1.25: 2 }
+});
+
+/**
+ * Plates per side for `w` on `bar`, using only `pairs` (size → pairs owned).
+ * Exact if possible with the fewest plates; otherwise the heaviest load under w.
+ */
+export function loadout(w, bar, pairs) {
+  const side = round2((w - bar) / 2);
+  if (side <= 0) return { plates: [], total: bar, exact: Math.abs(w - bar) < 0.01 };
+  const sizes = Object.keys(pairs).map(Number).filter((p) => pairs[p] > 0).sort((a, b) => b - a);
+  let best = null;
+  const cents = (x) => Math.round(x * 100);
+  const target = cents(side);
+  const seen = new Set();
+  const dfs = (i, left, used) => {
+    const key = i + ':' + left;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const sum = target - left;
+    if (!best || sum > best.sum || (sum === best.sum && used.length < best.plates.length)) best = { sum, plates: used.slice() };
+    if (left === 0 || i >= sizes.length) return;
+    const p = cents(sizes[i]);
+    const max = Math.min(pairs[sizes[i]], Math.floor(left / p));
+    for (let n = max; n >= 0; n--) {
+      for (let k = 0; k < n; k++) used.push(sizes[i]);
+      dfs(i + 1, left - n * p, used);
+      used.length -= n;
+      if (best.sum === target && n < max) break; // more of a bigger plate is never worse
+    }
+  };
+  dfs(0, target, []);
+  return { plates: best.plates, total: round2(bar + 2 * best.sum / 100), exact: best.sum === target };
+}
+
 export const MISS_REST = 300;
 export const EXTRA_REST = 90;
 
@@ -85,7 +127,7 @@ export function fresh() {
     program: 'sl', texasPress: 'bench', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
     weights: defaults('lb'), fails: zeros(), deloads: zeros(), schemes: defaultSchemes(),
     offers: {}, accs: {}, accW: {}, accSR: {}, dayC: { kb: true, cycle: false }, cycleMins: 45,
-    cycleDone: false, healthSync: false, mode: 'bar', next: 'A', sets: {}, history: [],
+    cycleDone: false, healthSync: false, inventory: defaultInventory(), mode: 'bar', next: 'A', sets: {}, history: [],
     sessionStart: null, returnSeen: null,
     // UI-only state below, never persisted
     tab: 'workout', openWarm: null, restFrom: null, restLift: null, restTarget: 180,
@@ -99,7 +141,7 @@ export function persisted(m) {
     v: 3, program: m.program, texasPress: m.texasPress, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
     weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
     accs: m.accs, accW: m.accW, accSR: m.accSR, dayC: m.dayC, cycleMins: m.cycleMins,
-    cycleDone: m.cycleDone, healthSync: m.healthSync, mode: m.mode, next: m.next, sets: m.sets,
+    cycleDone: m.cycleDone, healthSync: m.healthSync, inventory: m.inventory, mode: m.mode, next: m.next, sets: m.sets,
     history: m.history, sessionStart: m.sessionStart, returnSeen: m.returnSeen
   };
 }
@@ -125,6 +167,8 @@ export function absorb(s, p) {
   s.cycleMins = typeof p.cycleMins === 'number' ? p.cycleMins : 45;
   s.cycleDone = p.cycleDone === true;
   s.healthSync = p.healthSync === true;
+  const inv = obj(p.inventory), dInv = defaultInventory();
+  s.inventory = { lb: Object.keys(obj(inv.lb)).length ? inv.lb : dInv.lb, kg: Object.keys(obj(inv.kg)).length ? inv.kg : dInv.kg };
   // 'kb' was the prototype's kettlebell mode; it is now Day C.
   s.mode = p.mode === 'kb' || p.mode === 'c' ? 'c' : 'bar';
   s.next = daysFor(s.program).includes(p.next) ? p.next : daysFor(s.program)[0];
@@ -235,17 +279,23 @@ export class Tracker {
     return typeof v === 'number' ? v : (def.dflt ? def.dflt[this.state.unit] : 0);
   }
 
+  pairs() { return this.state.inventory[this.state.unit] || defaultInventory()[this.state.unit]; }
+
+  loadout(w) { return loadout(w, this.state.bar, this.pairs()); }
+
   plates(w) {
+    if (w <= this.state.bar) return 'bar';
+    const L = this.loadout(w);
+    const txt = L.plates.length ? L.plates.map(fmt).join(' ') : 'bar';
+    return L.exact ? txt : txt + ' · closest ' + fmt(L.total);
+  }
+
+  setPairs(size, dir) {
     const unit = this.state.unit;
-    let side = (w - this.state.bar) / 2;
-    if (side <= 0) return 'bar';
-    const sizes = unit === 'kg' ? [20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5];
-    const out = [];
-    for (const p of sizes) {
-      while (side >= p - 0.001) { out.push(fmt(p)); side -= p; }
-    }
-    if (side > 0.01) out.push('+' + fmt(side));
-    return out.join(' ');
+    const cur = { ...this.pairs() };
+    cur[size] = Math.max(0, Math.min(20, (cur[size] || 0) + dir));
+    if (!cur[size]) delete cur[size];
+    this.save({ inventory: { ...this.state.inventory, [unit]: cur } });
   }
 
   warmups(id, w, label) {

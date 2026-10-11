@@ -470,3 +470,36 @@ textarea {
 .eyebrow--paper { color: var(--paper); opacity: 0.8; }
 .session p { font-size: 13px; }
 .head .link { align-self: flex-start; padding: 0; }
+
+.calc { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.calc__w { flex: 1; text-align: center; font-family: var(--display); font-weight: 800; font-size: 36px; letter-spacing: -0.03em; }
+.calc__lifts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.muted { color: var(--muted); font-weight: 400; }
+
+.barviz {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 140px;
+  padding: 0 4px;
+  background: var(--inset);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+
+.barviz__sleeve { flex: 0 0 36px; height: 14px; background: var(--dash); border-radius: 2px; }
+.barviz__end { flex: 1 0 24px; height: 14px; background: var(--dash); border-radius: 0 2px 2px 0; }
+
+.plate {
+  flex: 0 0 auto;
+  width: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  writing-mode: vertical-rl;
+}

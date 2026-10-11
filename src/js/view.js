@@ -1,8 +1,8 @@
 // Turns Tracker state into HTML. Buttons carry data-act="<n>" pointing at a handler
 // collected during render; main.js dispatches clicks to them.
 import {
-  LIFTS, LADDER, ACC_LIB, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
-  fmt, clock, liftEntry, entryWeight, entryUnit
+  LIFTS, LADDER, ACC_LIB, PLATE_SIZES, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
+  fmt, round2, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
 import { PROGRAMS, DAY_TITLES, DAY_SUBTITLES, isLinear, daysFor, GUIDE, QUIZ, recommend } from './programs.js';
 
@@ -263,7 +263,8 @@ export function render(t, now) {
     html += section('UNITS', `<div class="grid2">${seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, (u) => t.setUnit(u))}</div>`,
       'Switching converts your working weights and rounds them to plates and bells you can load.');
     html += section('BAR WEIGHT', `<div class="grid3">${seg(barChoices(s.unit).map((b) => [b, b + ' ' + s.unit]), s.bar, (b) => t.save({ bar: b }))}</div>`,
-      'Used for warm-ups and the plate math.');
+      'Used for warm-ups and the plate math.' +
+      `</p><button class="link" ${on(() => t.setState({ tab: 'plates' }))}>Plate calculator and my plates →</button><p class="note">`);
     html += section('REST AFTER A GOOD SET', `<div class="grid3">${seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, (r) => t.save({ restGood: r }))}</div>`,
       'After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up.');
     html += section('MAIN LIFTS', Object.keys(LIFTS).map((id) => {
@@ -353,9 +354,50 @@ export function render(t, now) {
     return html;
   };
 
-  const body = s.tab === 'programs' ? programsView() : s.tab === 'history' ? historyView() : (s.tab === 'settings' ? settingsView() : logView());
+  // ---------- PLATES ----------
+  const platesView = () => {
+    const owned = t.pairs();
+    const smallest = Math.min(...Object.keys(owned).map(Number).filter((p) => owned[p] > 0), Infinity);
+    const stepW = isFinite(smallest) ? smallest * 2 : (s.unit === 'kg' ? 2.5 : 5);
+    const target = typeof s.calcW === 'number' ? s.calcW : (s.weights.squat || s.bar);
+    const L = t.loadout(target);
+    const setW = (x) => t.setState({ calcW: Math.max(s.bar, round2(x)) });
+    const maxP = PLATE_SIZES[s.unit][0];
+    const plateEl = (p) => `<div class="plate" style="height:${Math.round(40 + 90 * Math.sqrt(p / maxP))}px">${fmt(p)}</div>`;
+    let html = `<header class="head head--plain">
+      <button class="link link--sm" ${on(() => t.setState({ tab: 'settings' }))}>← SETUP</button>
+      <h1 class="title">Plates</h1></header>`;
+    html += `<section class="block"><h2 class="label">CALCULATOR</h2>
+      <div class="calc">
+        <button class="pm" aria-label="Down 10 ${s.unit}" ${on(() => setW(target - (s.unit === 'kg' ? 5 : 10)))}>&minus;&minus;</button>
+        <button class="pm" aria-label="Down ${fmt(stepW)} ${s.unit}" ${on(() => setW(target - stepW))}>&minus;</button>
+        <div class="calc__w">${fmt(target)}<span class="weight__unit"> ${s.unit}</span></div>
+        <button class="pm" aria-label="Up ${fmt(stepW)} ${s.unit}" ${on(() => setW(target + stepW))}>+</button>
+        <button class="pm" aria-label="Up 10 ${s.unit}" ${on(() => setW(target + (s.unit === 'kg' ? 5 : 10)))}>++</button>
+      </div>
+      <div class="barviz" aria-label="Each side: ${L.plates.length ? L.plates.map(fmt).join(', ') : 'empty bar'}">
+        <div class="barviz__sleeve"></div>${L.plates.map(plateEl).join('')}<div class="barviz__end"></div>
+      </div>
+      <p><b>Each side:</b> ${L.plates.length ? L.plates.map(fmt).join(' + ') : 'nothing, just the bar'} · bar ${fmt(s.bar)} ${s.unit}</p>
+      ${L.exact ? '' : `<p class="msg is-danger">Can’t make ${fmt(target)} with your plates. Closest is ${fmt(L.total)} ${s.unit}.</p>`}
+      <div class="calc__lifts">${Object.keys(LIFTS).map((id) => `<button class="link link--sm" ${on(() => setW(s.weights[id]))}>${{ squat: 'Squat', bench: 'Bench', row: 'Row', ohp: 'Press', dead: 'Deadlift' }[id]} ${fmt(s.weights[id])}</button>`).join('')}</div>
+    </section>`;
+    html += `<section class="block"><h2 class="label">MY PLATES (${s.unit.toUpperCase()} · PAIRS)</h2>
+      <p class="note">Set how many pairs of each plate your gym has. Warm-ups, set weights and this calculator only use what's here. Set to 0 for plates you don't have.</p>
+      ${PLATE_SIZES[s.unit].map((p) => {
+        const n = owned[p] || 0;
+        return `<div class="cfg"><div class="grow"><b class="${n ? '' : 'muted'}">${fmt(p)} ${s.unit}</b></div>
+          <button class="pm" aria-label="One fewer pair of ${fmt(p)}" ${on(() => t.setPairs(p, -1))}>&minus;</button>
+          <div class="cfg__w">${n}</div>
+          <button class="pm" aria-label="One more pair of ${fmt(p)}" ${on(() => t.setPairs(p, 1))}>+</button></div>`;
+      }).join('')}
+      <p class="note">Switching units under Setup keeps a separate plate list for pounds and kilograms.</p></section>`;
+    return html;
+  };
+
+  const body = s.tab === 'plates' ? platesView() : s.tab === 'programs' ? programsView() : s.tab === 'history' ? historyView() : (s.tab === 'settings' ? settingsView() : logView());
   const tabs = [['workout', 'LOG'], ['history', 'HISTORY'], ['settings', 'SETUP']].map(([k, label]) => {
-    const cur = s.tab === k || (k === 'settings' && s.tab === 'programs');
+    const cur = s.tab === k || (k === 'settings' && (s.tab === 'programs' || s.tab === 'plates'));
     return `<button class="tab${cur ? ' is-on' : ''}" aria-current="${cur ? 'page' : 'false'}" ${on(() => t.setState({ tab: k, confirmReset: false, confirmDel: null, backupMsg: '' }))}>${label}</button>`;
   }).join('');
 
