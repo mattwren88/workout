@@ -1,0 +1,13 @@
+{
+  "appId": "com.mattwren.fivebyfive",
+  "appName": "5×5",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#F3EEE2"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#1D1B17"
+    }
+  }
+}
