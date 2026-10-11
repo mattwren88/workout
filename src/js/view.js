@@ -4,7 +4,7 @@ import {
   LIFTS, LADDER, ACC_LIB, PLATE_SIZES, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
   fmt, round2, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
-import { PROGRAMS, DAY_TITLES, DAY_SUBTITLES, isLinear, daysFor, GUIDE, QUIZ, recommend } from './programs.js';
+import { PROGRAMS, DAY_TITLES, isLinear, daysFor, GUIDE, QUIZ, recommend } from './programs.js';
 
 const ACC_COLOR = '#B8AE98';
 const KB_COLOR = '#5A554B';
@@ -82,19 +82,21 @@ export function render(t, now) {
   // ---------- LOG ----------
   const logView = () => {
     const ret = !isC ? t.returnInfo() : null;
-    const other = t.nextDay();
     const prog = PROGRAMS[s.program] || PROGRAMS.sl;
+    // One row picks today's workout and shows what's done this week.
+    const done = doneThisWeek(s, now);
+    const picks = daysFor(s.program).concat('C').map((d) => {
+      const sel = d === 'C' ? isC : (!isC && d === s.next);
+      const did = done.has(d);
+      return `<button class="day${sel ? ' is-on' : ''}${did ? ' is-done' : ''}" aria-pressed="${sel}" aria-label="${DAY_TITLES[d]}${did ? ', done this week' : ''}" ${on(() => t.pickDay(d))}>${d.length === 1 && 'ABC'.includes(d) ? 'DAY ' + d : shortDay(d)}${did ? '<span class="day__tick" aria-hidden="true">✓</span>' : ''}</button>`;
+    }).join('');
     let html = `<header class="head">
       <div class="head__top">
-        <div><div class="eyebrow">${esc(dateText(now))} · ${isC ? 'IN-BETWEEN DAY' : prog.name + (DAY_SUBTITLES[s.next] ? ' · ' + DAY_SUBTITLES[s.next] : '')}</div>
+        <div><div class="eyebrow">${esc(dateText(now))} · ${isC ? 'IN-BETWEEN DAY' : prog.name}</div>
         <h1 class="title">${isC ? 'Day C' : DAY_TITLES[s.next]}</h1></div>
-        ${isC ? '' : `<button class="btn btn--ghost btn--sm" aria-label="Switch to ${DAY_TITLES[other]}" ${on(() => t.swapWorkout())}>SWITCH → ${shortDay(other)}</button>`}
-      </div>
-      <div class="head__meta">
-        <div class="week"><span class="eyebrow">THIS WEEK</span><div class="week__days">${weekStrip(s, now)}</div></div>
         ${s.sessionStart ? `<div class="eyebrow" data-live="session">${sessionText(s, now)}</div>` : ''}
       </div>
-      <div class="grid2">${seg([['bar', 'BARBELL · ' + DAY_TITLES[s.next].toUpperCase()], ['c', 'DAY C']], s.mode, (m) => t.setMode(m))}</div>
+      <div class="days" role="group" aria-label="Today's workout">${picks}</div>
     </header>`;
 
     if (ret) {
@@ -107,7 +109,7 @@ export function render(t, now) {
         </div></section>`;
     }
     if (isC) {
-      html += '<p class="note note--pad">A light day between lifting. Keep it easy enough that it helps recovery instead of eating into it. Day C doesn\'t change the A/B rotation.</p>';
+      html += '<p class="note note--pad">Light work between lifting days. Keep it easy.</p>';
       if (s.dayC.cycle) html += cycleCard();
       const defs = t.dayCExtras();
       html += defs.map((d) => extraCard(d, KB_ROUTINE.some((k) => k.key === d.key) ? INK : (d.kind === 'kb' ? KB_COLOR : ACC_COLOR))).join('');
@@ -125,7 +127,7 @@ export function render(t, now) {
 
     html += `<div class="finish">
       <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => { t.finish(); t.syncHealth(); })}>Finish ${isC ? 'Day C' : DAY_TITLES[s.next]}</button>
-      <p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p></div>`;
+      ${s.history.length < 3 ? '<p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p>' : ''}</div>`;
     return html;
   };
 
@@ -134,6 +136,7 @@ export function render(t, now) {
     const linear = isLinear(s.program);
     const sk = item.scheme || '5x5';
     const open = s.openWarm === id;
+    const toggle = () => t.setState({ openWarm: open ? null : id });
     const ramp = item.sets.some((x) => x.w !== item.sets[0].w || x.reps !== item.sets[0].reps);
     let last = lastText(t.lastFor(id, lift.name), item.sets[item.sets.length - 1].reps);
     if (s.fails[id] > 0) last += ' · miss ' + s.fails[id] + '/3';
@@ -145,20 +148,17 @@ export function render(t, now) {
         <div class="lift__head">
           <div><h2 class="lift__name">${lift.name}</h2>
           <div class="note">${esc(item.label)}${s.deloads[id] > 0 && s.program === 'sl' ? ' · deloads ' + s.deloads[id] : ''}</div></div>
-          <div class="weight">${fmt(w)}<span class="weight__unit"> ${s.unit}</span></div>
+          <button class="weight weight--btn" aria-expanded="${open}" aria-label="${fmt(w)} ${s.unit}. Tap for warm-up, plates and to adjust." ${on(toggle)}>${fmt(w)}<span class="weight__unit"> ${s.unit}</span></button>
         </div>
         ${offer ? `<div class="offer"><div>This lift has stalled through two deloads. Fewer sets usually gets it moving again.</div>
           <div class="grid2"><button class="btn btn--ink" ${on(() => t.acceptOffer(id))}>SWITCH TO ${schemeLabel(nextScheme)}</button>
           <button class="btn btn--ghost" ${on(() => t.declineOffer(id))}>NOT NOW</button></div></div>` : ''}
         ${ramp ? rampButtons(id, item.sets, s.restGood) : setButtons(id, item.sets.length, item.sets[0].reps, s.restGood)}
-        <div class="lift__foot"><div>${esc(last)}</div>${restBtn(id)}</div>
+        <div class="lift__foot"><div>${esc(last)}</div>${restBtn(id) || `<button class="link link--sm" aria-expanded="${open}" ${on(toggle)}>${open ? 'hide ▴' : (w <= s.bar || ramp ? 'plates ▾' : 'warm-up ▾')}</button>`}</div>
         ${open ? `<div class="warm"><div class="warm__row warm__row--head"><div>SETS</div><div>${s.unit.toUpperCase()}</div><div>PLATES / SIDE</div></div>
           ${(linear || !ramp ? t.warmups(id, w, item.sets.length + '×' + item.sets[0].reps) : item.sets.map((x) => ({ reps: '1×' + x.reps, weightText: fmt(x.w), plates: t.plates(x.w), work: x.w === w })))
-            .map((r) => `<div class="warm__row${r.work ? ' is-work' : ''}"><div>${r.reps}</div><div>${r.weightText}</div><div>${r.plates}</div></div>`).join('')}</div>` : ''}
-        <div class="lift__tools">
-          <button class="link" aria-expanded="${open}" ${on(() => t.setState({ openWarm: open ? null : id }))}>${open ? '− hide' : (w <= s.bar || ramp ? '+ plates' : '+ warm-up')}</button>
-          <div class="pms">${pm(lift.name, () => t.adjust(id, -1), () => t.adjust(id, 1))}</div>
-        </div>
+            .map((r) => `<div class="warm__row${r.work ? ' is-work' : ''}"><div>${r.reps}</div><div>${r.weightText}</div><div>${r.plates}</div></div>`).join('')}
+          <div class="warm__adjust"><span class="note">Adjust ${linear ? 'working' : (s.program === 'madcow' ? 'top-set' : 'base')} weight</span><div class="pms">${pm(lift.name, () => t.adjust(id, -1), () => t.adjust(id, 1))}</div></div></div>` : ''}
       </div></section>`;
   };
 
@@ -192,17 +192,21 @@ export function render(t, now) {
 
   const extraCard = (def, color) => {
     const key = 'x:' + def.key, hasWeight = def.kind !== 'bw', w = t.extraW(def);
+    const open = hasWeight && s.openWarm === key;
+    const toggle = () => t.setState({ openWarm: open ? null : key });
     return `<section class="lift lift--extra">
       <div class="stripe" style="background:${color}"></div>
       <div class="lift__body">
         <div class="lift__head">
           <div><h2 class="lift__name lift__name--sm">${def.name}</h2>
           <div class="note">${def.sets}×${def.reps}${def.note ? ' · ' + def.note : ''}</div></div>
-          <div class="weight weight--sm">${hasWeight ? fmt(w) : 'BW'}<span class="weight__unit"> ${hasWeight ? s.unit : ''}</span></div>
+          ${hasWeight
+            ? `<button class="weight weight--sm weight--btn" aria-expanded="${open}" aria-label="${fmt(w)} ${s.unit}. Tap to adjust." ${on(toggle)}>${fmt(w)}<span class="weight__unit"> ${s.unit}</span></button>`
+            : '<div class="weight weight--sm">BW</div>'}
         </div>
         ${setButtons(key, def.sets, def.reps, EXTRA_REST, true)}
-        <div class="lift__foot"><div>${esc(lastText(t.lastFor(key, def.name), def.reps))}</div>${restBtn(key)}
-          ${hasWeight ? `<div class="pms">${pm(def.name, () => t.adjustExtra(def, -1), () => t.adjustExtra(def, 1))}</div>` : ''}</div>
+        <div class="lift__foot"><div>${esc(lastText(t.lastFor(key, def.name), def.reps))}</div>${restBtn(key)}</div>
+        ${open ? `<div class="warm"><div class="warm__adjust"><span class="note">Adjust weight</span><div class="pms">${pm(def.name, () => t.adjustExtra(def, -1), () => t.adjustExtra(def, 1))}</div></div></div>` : ''}
       </div></section>`;
   };
 
@@ -247,6 +251,15 @@ export function render(t, now) {
 
   // ---------- SETUP ----------
   const settingsView = () => {
+    // Collapsible group of sections; Training starts open.
+    const openG = s.setupOpen || { training: true };
+    const group = (key, title, summary, body) => {
+      const isOpen = !!openG[key];
+      return `<div class="group${isOpen ? ' is-open' : ''}">
+        <button class="group__head" aria-expanded="${isOpen}" ${on(() => t.setState({ setupOpen: { ...openG, [key]: !isOpen } }))}>
+          <span class="group__title">${title}</span><span class="group__sum">${isOpen ? '' : esc(summary)}</span><span aria-hidden="true">${isOpen ? '▴' : '▾'}</span></button>
+        ${isOpen ? body : ''}</div>`;
+    };
     const section = (label, body, note) => `<section class="block"><h2 class="label">${label}</h2>${body}${note ? `<p class="note">${note}</p>` : ''}</section>`;
     const locked = s.program !== 'sl';
     const dayNames = { '': 'OFF', both: 'A + B', A: 'DAY A', B: 'DAY B', C: 'DAY C' };
@@ -254,20 +267,15 @@ export function render(t, now) {
       const d = t.def(base);
       return `<div class="cfg__links">
         <button class="link link--sm link--muted" aria-label="${base.name} sets, now ${d.sets}. Tap to change." ${on(() => t.cycleSR(base.key, 'sets'))}>${d.sets} sets</button>
-        <button class="link link--sm link--muted" aria-label="${base.name} reps, now ${d.reps}. Tap to change." ${on(() => t.cycleSR(base.key, 'reps'))}>× ${d.reps}${base.note ? ' ' + base.note : ''}</button></div>`;
+        <button class="link link--sm link--muted" aria-label="${base.name} reps, now ${d.reps}. Tap to change." ${on(() => t.cycleSR(base.key, 'reps'))}>× ${d.reps}</button>${base.note ? `<span class="note">${base.note}</span>` : ''}</div>`;
     };
     let html = '<header class="head head--plain"><h1 class="title">Setup</h1></header>';
-    html += section('PROGRAM', `<div class="grid2">${seg(Object.keys(PROGRAMS).map((k) => [k, PROGRAMS[k].name]), s.program, (p) => t.setProgram(p))}</div>`,
+    let gh;
+    gh = '';
+    gh += section('PROGRAM', `<div class="grid2">${seg(Object.keys(PROGRAMS).map((k) => [k, PROGRAMS[k].name]), s.program, (p) => t.setProgram(p))}</div>`,
       PROGRAMS[s.program].note + ' Switching keeps your weights and history.' +
       `</p><button class="link" ${on(() => t.setState({ tab: 'programs' }))}>Which program is right for me? →</button><p class="note">`);
-    html += section('UNITS', `<div class="grid2">${seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, (u) => t.setUnit(u))}</div>`,
-      'Switching converts your working weights and rounds them to plates and bells you can load.');
-    html += section('BAR WEIGHT', `<div class="grid3">${seg(barChoices(s.unit).map((b) => [b, b + ' ' + s.unit]), s.bar, (b) => t.save({ bar: b }))}</div>`,
-      'Used for warm-ups and the plate math.' +
-      `</p><button class="link" ${on(() => t.setState({ tab: 'plates' }))}>Plate calculator and my plates →</button><p class="note">`);
-    html += section('REST AFTER A GOOD SET', `<div class="grid3">${seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, (r) => t.save({ restGood: r }))}</div>`,
-      'After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up.');
-    html += section('MAIN LIFTS', Object.keys(LIFTS).map((id) => {
+    gh += section('MAIN LIFTS', Object.keys(LIFTS).map((id) => {
       const l = LIFTS[id];
       const sch = s.program === 'madcow' ? 'top set' : (s.program === 'texas' ? (id === 'dead' ? '1×5' : '5-rep target') : schemeLabel(t.schemeFor(id)));
       const inc = s.program === 'madcow' ? '+2.5% / week' : '+' + fmt(s.incs[id]) + ' ' + s.unit + (s.program === 'texas' ? ' / week' : ' / session');
@@ -280,31 +288,41 @@ export function render(t, now) {
         <div class="cfg__w">${fmt(s.weights[id])}</div>
         <button class="pm" aria-label="Raise ${l.name} weight" ${on(() => t.adjust(id, 1))}>+</button></div>`;
     }).join(''), isLinear(s.program)
-      ? 'Tap the sets × reps or the increment to change them. After a lift stalls through two deloads, the log offers the next lower-volume step: 5×5 → 3×5 → 3×3.'
+      ? 'Hit every rep and the lift goes up next time; miss and it repeats; three misses in a row drops it 10%. Tap sets × reps or the increment to change them. After two deloads the log offers a lower-volume step: 5×5 → 3×5 → 3×3.'
       : (s.program === 'madcow'
         ? 'Weights are your top set of 5: Monday for squat, bench and row; Wednesday for press and deadlift. The ramps are worked out from them. Texas Method doesn\'t use row.'
         : 'Weights are your Friday 5-rep targets (deadlift: its Monday 1×5). Monday and Wednesday are worked out from them. Row isn\'t part of Texas Method.'));
-    html += section('DAY C', `<div class="grid2">
+    gh += section('DAY C', `<div class="grid2">
         <button class="seg${s.dayC.kb ? ' is-on' : ''}" aria-pressed="${!!s.dayC.kb}" ${on(() => t.toggleDayC('kb'))}>KB ROUTINE</button>
         <button class="seg${s.dayC.cycle ? ' is-on' : ''}" aria-pressed="${!!s.dayC.cycle}" ${on(() => t.toggleDayC('cycle'))}>CYCLING</button></div>
       ${s.dayC.kb ? KB_ROUTINE.map((d) => `<div class="cfg"><div class="stripe stripe--thin" style="background:${INK}"></div>
         <div class="grow"><b>${d.name}</b>${srLinks(d)}</div></div>`).join('') : ''}`,
-      'The in-between day. Pick what goes on it here, and add accessories to it below. Day C doesn\'t change the A/B rotation.');
-    html += section('ACCESSORIES', '<p class="note">Tap the day button to put a lift on Day A, Day B, both, or Day C. Tap sets or reps to change them. Accessories have no automatic progression.</p>' + ACC_LIB.map((d) => {
+      'Light work between lifting days. Add accessories to Day C below. It doesn\'t change the A/B rotation.');
+    gh += section('ACCESSORIES', '<p class="note">The button picks the day: off → A + B → A → B → C. No automatic progression.</p>' + ACC_LIB.map((d) => {
       const day = s.accs[d.key] || '';
       return `<div class="cfg"><div class="stripe stripe--thin" style="background:${d.kind === 'kb' ? KB_COLOR : ACC_COLOR}"></div>
-        <div class="grow"><b>${d.name}</b>${srLinks(d)}<div class="note">${d.kind === 'kb' ? 'kettlebell' : (d.kind === 'bw' ? 'bodyweight' : 'weighted')}</div></div>
+        <div class="grow"><b>${d.name}</b>${srLinks(d)}</div>
         <button class="seg seg--day${day ? ' is-on' : ''}" aria-label="${d.name}: ${day ? 'on ' + dayNames[day] : 'off'}. Tap to change." ${on(() => t.cycleAccDay(d.key))}>${dayNames[day]}</button></div>`;
     }).join(''));
-    html += section('PROGRESSION', '<p>Hit every rep and the lift goes up next time. Miss reps and the weight repeats. Three misses in a row drops it 10%. After two weeks or more away, the log offers to ease you back in.</p>');
-    html += section('GOOGLE HEALTH', t.health
+    html += group('training', 'TRAINING', PROGRAMS[s.program].name + ' · ' + Object.keys(s.accs).length + ' accessories', gh);
+    gh = '';
+    gh += section('UNITS', `<div class="grid2">${seg([['lb', 'POUNDS'], ['kg', 'KILOGRAMS']], s.unit, (u) => t.setUnit(u))}</div>`,
+      'Switching converts your working weights and rounds them to plates and bells you can load.');
+    gh += section('BAR WEIGHT', `<div class="grid3">${seg(barChoices(s.unit).map((b) => [b, b + ' ' + s.unit]), s.bar, (b) => t.save({ bar: b }))}</div>`,
+      'Used for warm-ups and the plate math.' +
+      `</p><button class="link" ${on(() => t.setState({ tab: 'plates' }))}>Plate calculator and my plates →</button><p class="note">`);
+    gh += section('REST AFTER A GOOD SET', `<div class="grid3">${seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, (r) => t.save({ restGood: r }))}</div>`,
+      'After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up.');
+    html += group('gear', 'GYM & TIMER', (s.unit === 'kg' ? 'kilograms' : 'pounds') + ' · ' + fmt(s.bar) + ' ' + s.unit + ' bar · ' + clock(s.restGood) + ' rest', gh);
+    gh = '';
+    gh += section('GOOGLE HEALTH', t.health
       ? `<div class="grid2">
           <button class="seg${s.healthSync ? ' is-on' : ''}" aria-pressed="${s.healthSync}" ${on(() => t.enableHealth())}>${s.healthSync ? 'SYNC ON' : 'CONNECT'}</button>
           <button class="seg" ${s.healthSync ? '' : 'disabled'} ${on(() => t.disableHealth())}>TURN OFF</button></div>
         ${s.healthMsg ? `<div role="status" class="msg${s.healthOk ? '' : ' is-danger'}">${esc(s.healthMsg)}</div>` : ''}`
       : '<p>Health Connect sync works in the Android app, not in this preview.</p>',
       'Each finished session is written to Health Connect as a strength workout, and Day C cycling as a ride. Connecting also sends your past sessions. Deleting a session here removes it there too.');
-    html += section('BACKUP', `<p class="note">Your log lives on this device. Uninstalling the app erases it, so save a backup somewhere safe now and then.</p>
+    gh += section('BACKUP', `<p class="note">Your log lives on this device. Uninstalling the app erases it, so save a backup somewhere safe now and then.</p>
       <div class="grid2"><button class="btn btn--ink" ${on(() => t.ui.shareBackup())}>SAVE BACKUP</button>
       <button class="btn btn--ghost" aria-expanded="${!!s.backupOpen}" ${on(() => t.setState({ backupOpen: !s.backupOpen, backupMsg: '' }))}>${s.backupOpen ? 'HIDE' : 'RESTORE'}</button></div>
       ${s.backupMsg ? `<div role="status" class="msg${s.backupOk ? '' : ' is-danger'}">${esc(s.backupMsg)}</div>` : ''}
@@ -314,7 +332,8 @@ export function render(t, now) {
         <textarea id="restore-box" rows="4" data-input="importText">${esc(s.importText)}</textarea>
         <div class="grid2"><button class="btn btn--ghost" ${on(() => t.ui.pickBackupFile())}>OPEN FILE</button>
         <button class="btn btn--ghost" ${on(() => t.restore(t.state.importText))}>RESTORE</button></div></div>` : ''}`);
-    html += `<div class="finish"><button class="btn btn--danger" ${on(() => (s.confirmReset ? t.reset() : t.setState({ confirmReset: true })))}>${s.confirmReset ? 'TAP AGAIN TO ERASE EVERYTHING' : 'RESET ALL DATA'}</button></div>`;
+    gh += `<div class="finish"><button class="btn btn--danger" ${on(() => (s.confirmReset ? t.reset() : t.setState({ confirmReset: true })))}>${s.confirmReset ? 'TAP AGAIN TO ERASE EVERYTHING' : 'RESET ALL DATA'}</button></div>`;
+    html += group('data', 'DATA & SYNC', (s.healthSync ? 'Google Health on' : 'Google Health off') + ' · backup', gh);
     return html;
   };
 
@@ -407,24 +426,11 @@ export function render(t, now) {
 // One- or three-letter label for chips and the switch button.
 function shortDay(d) { return { M: 'MON', W: 'WED', F: 'FRI', V: 'VOL', R: 'REC', I: 'INT' }[d] || d; }
 
-function weekStrip(s, now) {
+function doneThisWeek(s, now) {
   const d = new Date(now);
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  const done = s.history.filter((h) => new Date(h.date) >= start).reverse();
-  const chip = (label, aria, cls) => `<div class="chip ${cls}" aria-label="${aria}">${esc(label)}</div>`;
-  const label = (w) => (w === 'KB' ? 'C' : shortDay(w));
-  const name = (w) => DAY_TITLES[w] || 'Day ' + w;
-  let html = done.map((h) => chip(label(h.workout), name(h.workout) + ' done', 'is-done')).join('');
-  html += chip(label(s.next), name(s.next) + ' up next', 'is-next');
-  const days = daysFor(s.program);
-  let nxt = days[(days.indexOf(s.next) + 1) % days.length];
-  const lifted = done.filter((h) => h.workout !== 'C' && h.workout !== 'KB').length;
-  for (let k = lifted + 1; k < 3; k++) {
-    html += chip(label(nxt), name(nxt) + ' planned', 'is-planned');
-    nxt = days[(days.indexOf(nxt) + 1) % days.length];
-  }
-  return html;
+  return new Set(s.history.filter((h) => new Date(h.date) >= start).map((h) => (h.workout === 'KB' ? 'C' : h.workout)));
 }
 
 export function progressRows(s) {

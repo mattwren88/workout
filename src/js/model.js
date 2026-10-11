@@ -421,6 +421,14 @@ export class Tracker {
   }
   setMode(m) { this.save({ mode: m, restFrom: null, restLift: null }); }
 
+  // Today's workout from the day row: a program day, or 'C'.
+  pickDay(d) {
+    const s = this.state;
+    if (d === 'C') { if (s.mode !== 'c') this.setMode('c'); return; }
+    if (s.mode === 'c') this.save({ mode: 'bar', restFrom: null, restLift: null });
+    if (d !== this.state.next) this.save({ next: d, sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
+  }
+
   swapWorkout() {
     this.save({ next: this.nextDay(), sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
   }
