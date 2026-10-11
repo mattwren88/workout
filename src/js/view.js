@@ -1,14 +1,15 @@
 // Turns Tracker state into HTML. Buttons carry data-act="<n>" pointing at a handler
 // collected during render; main.js dispatches clicks to them.
 import {
-  LIFTS, LADDER, ACC_LIB, PLATE_SIZES, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
+  LIFTS, LADDER, ACC_LIB, PLATE_SIZES, THEMES, KB_ROUTINE, EXTRA_REST, CYCLE, schemeLabel, barChoices,
   fmt, round2, clock, liftEntry, entryWeight, entryUnit
 } from './model.js';
 import { PROGRAMS, DAY_TITLES, isLinear, daysFor, GUIDE, QUIZ, recommend } from './programs.js';
 
-const ACC_COLOR = '#B8AE98';
-const KB_COLOR = '#5A554B';
-const INK = '#1D1B17';
+// Theme-aware: these resolve through CSS custom properties.
+const ACC_COLOR = 'var(--acc)';
+const KB_COLOR = 'var(--kb)';
+const INK = 'var(--ink)';
 
 const esc = (v) => String(v == null ? '' : v)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -60,8 +61,9 @@ export function render(t, now) {
     `<button class="pm" aria-label="Lower ${esc(name)} weight" ${on(minus)}>&minus;</button>` +
     `<button class="pm" aria-label="Raise ${esc(name)} weight" ${on(plus)}>+</button>`;
 
-  const restBtn = (key) => {
-    if (!s.restFrom || s.restLift !== key) return '';
+  // Rest timer lives in the bottom dock so it stays visible while scrolling.
+  const restBtn = () => {
+    if (!s.restFrom) return '';
     const r = restInfo(s, now);
     return `<button class="rest${r.up ? ' is-up' : ''}" data-live="rest" aria-label="${r.aria}" ${on(() => t.setState({ restFrom: null, restLift: null }))}>${r.label}</button>`;
   };
@@ -85,10 +87,11 @@ export function render(t, now) {
     const prog = PROGRAMS[s.program] || PROGRAMS.sl;
     // One row picks today's workout and shows what's done this week.
     const done = doneThisWeek(s, now);
+    const hasSets = Object.values(s.sets).some((a) => Array.isArray(a) && a.some((v) => v != null));
     const picks = daysFor(s.program).concat('C').map((d) => {
       const sel = d === 'C' ? isC : (!isC && d === s.next);
       const did = done.has(d);
-      return `<button class="day${sel ? ' is-on' : ''}${did ? ' is-done' : ''}" aria-pressed="${sel}" aria-label="${DAY_TITLES[d]}${did ? ', done this week' : ''}" ${on(() => t.pickDay(d))}>${d.length === 1 && 'ABC'.includes(d) ? 'DAY ' + d : shortDay(d)}${did ? '<span class="day__tick" aria-hidden="true">✓</span>' : ''}</button>`;
+      return `<button class="day${sel ? ' is-on' : ''}${did ? ' is-done' : ''}" aria-pressed="${sel}" aria-label="${DAY_TITLES[d]}${did ? ', done this week' : ''}" ${on(() => t.pickDay(d, hasSets))}>${s.confirmDay === d ? 'SWITCH?' : (d.length === 1 && 'ABC'.includes(d) ? 'DAY ' + d : shortDay(d))}${did ? '<span class="day__tick" aria-hidden="true">✓</span>' : ''}</button>`;
     }).join('');
     let html = `<header class="head">
       <div class="head__top">
@@ -125,9 +128,12 @@ export function render(t, now) {
       }
     }
 
-    html += `<div class="finish">
+    if (s.history.length < 3) html += '<p class="note center note--pad">Tap a set when you hit every rep. Tap again to count down missed reps.</p>';
+    // Once a set is logged, Finish and the rest timer dock to the bottom of the screen.
+    html += `<div class="dock${anyLogged ? ' is-live' : ''}">
+      ${restBtn()}
       <button class="btn btn--finish" ${anyLogged ? '' : 'disabled'} ${on(() => { t.finish(); t.syncHealth(); })}>Finish ${isC ? 'Day C' : DAY_TITLES[s.next]}</button>
-      ${s.history.length < 3 ? '<p class="note center">Tap a set when you hit every rep. Tap again to count down missed reps.</p>' : ''}</div>`;
+    </div>`;
     return html;
   };
 
@@ -154,7 +160,7 @@ export function render(t, now) {
           <div class="grid2"><button class="btn btn--ink" ${on(() => t.acceptOffer(id))}>SWITCH TO ${schemeLabel(nextScheme)}</button>
           <button class="btn btn--ghost" ${on(() => t.declineOffer(id))}>NOT NOW</button></div></div>` : ''}
         ${ramp ? rampButtons(id, item.sets, s.restGood) : setButtons(id, item.sets.length, item.sets[0].reps, s.restGood)}
-        <div class="lift__foot"><div>${esc(last)}</div>${restBtn(id) || `<button class="link link--sm" aria-expanded="${open}" ${on(toggle)}>${open ? 'hide ▴' : (w <= s.bar || ramp ? 'plates ▾' : 'warm-up ▾')}</button>`}</div>
+        <div class="lift__foot"><div>${esc(last)}</div>${`<button class="link link--sm" aria-expanded="${open}" ${on(toggle)}>${open ? 'hide ▴' : (w <= s.bar || ramp ? 'plates ▾' : 'warm-up ▾')}</button>`}</div>
         ${open ? `<div class="warm"><div class="warm__row warm__row--head"><div>SETS</div><div>${s.unit.toUpperCase()}</div><div>PLATES / SIDE</div></div>
           ${(linear || !ramp ? t.warmups(id, w, item.sets.length + '×' + item.sets[0].reps) : item.sets.map((x) => ({ reps: '1×' + x.reps, weightText: fmt(x.w), plates: t.plates(x.w), work: x.w === w })))
             .map((r) => `<div class="warm__row${r.work ? ' is-work' : ''}"><div>${r.reps}</div><div>${r.weightText}</div><div>${r.plates}</div></div>`).join('')}
@@ -205,7 +211,7 @@ export function render(t, now) {
             : '<div class="weight weight--sm">BW</div>'}
         </div>
         ${setButtons(key, def.sets, def.reps, EXTRA_REST, true)}
-        <div class="lift__foot"><div>${esc(lastText(t.lastFor(key, def.name), def.reps))}</div>${restBtn(key)}</div>
+        <div class="lift__foot"><div>${esc(lastText(t.lastFor(key, def.name), def.reps))}</div></div>
         ${open ? `<div class="warm"><div class="warm__adjust"><span class="note">Adjust weight</span><div class="pms">${pm(def.name, () => t.adjustExtra(def, -1), () => t.adjustExtra(def, 1))}</div></div></div>` : ''}
       </div></section>`;
   };
@@ -223,7 +229,7 @@ export function render(t, now) {
           <div class="grow"><div class="progress__name">${p.name}</div><div class="note">${esc(p.delta)}</div></div>
           <svg width="110" height="36" viewBox="0 0 110 36" role="img" aria-label="${esc(p.aria)}"><title>${esc(p.aria)}</title>
             <polyline points="${p.points}" fill="none" stroke="${p.stroke}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-            <circle cx="${p.endX}" cy="${p.endY}" r="4" fill="${p.stroke}" stroke="#F3EEE2" stroke-width="2"/></svg>
+            <circle cx="${p.endX}" cy="${p.endY}" r="4" fill="${p.stroke}" stroke-width="2" style="stroke:var(--paper)"/></svg>
           <div class="progress__now">${p.current}</div>
         </div>`).join('') + '</section>';
     }
@@ -313,7 +319,12 @@ export function render(t, now) {
       `</p><button class="link" ${on(() => t.setState({ tab: 'plates' }))}>Plate calculator and my plates →</button><p class="note">`);
     gh += section('REST AFTER A GOOD SET', `<div class="grid3">${seg([[90, '1:30'], [120, '2:00'], [180, '3:00']], s.restGood, (r) => t.save({ restGood: r }))}</div>`,
       'After a missed set the timer counts to 5:00. Accessories and kettlebell sets rest 1:30. The phone buzzes when time is up.');
-    html += group('gear', 'GYM & TIMER', (s.unit === 'kg' ? 'kilograms' : 'pounds') + ' · ' + fmt(s.bar) + ' ' + s.unit + ' bar · ' + clock(s.restGood) + ' rest', gh);
+    gh += section('THEME', `<div class="themes">${THEMES.map((th) => {
+      const sel = s.theme === th.id;
+      return `<button class="theme${sel ? ' is-on' : ''}" aria-pressed="${sel}" ${on(() => t.save({ theme: th.id }))}>
+        <span class="theme__sw" style="background:${th.swatch[0]};border-color:${th.swatch[1]}"><i style="background:${th.swatch[1]}"></i><i style="background:${th.swatch[2]}"></i></span>${th.name}</button>`;
+    }).join('')}</div>`, 'Chalk is dark, for dim gyms. Lift colours stay the same in every theme.');
+    html += group('gear', 'GYM & DISPLAY', (s.unit === 'kg' ? 'kilograms' : 'pounds') + ' · ' + fmt(s.bar) + ' ' + s.unit + ' bar · ' + clock(s.restGood) + ' rest · ' + s.theme, gh);
     gh = '';
     gh += section('GOOGLE HEALTH', t.health
       ? `<div class="grid2">

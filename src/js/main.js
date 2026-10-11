@@ -34,8 +34,21 @@ function syncNative(s) {
   native.keepAwake(!!s.sessionStart && s.tab === 'workout');
 }
 
+let theme = null;
+function applyTheme(name) {
+  if (name === theme) return;
+  theme = name;
+  if (name === 'ledger') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.dataset.theme = name;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta && bg) meta.setAttribute('content', bg);
+  native.setBars(bg, name === 'chalk' || name === 'blueprint');
+}
+
 function draw() {
   const s = tracker.state;
+  applyTheme(s.theme);
   const main = document.getElementById('main');
   const scroll = main && s.tab === lastTab ? main.scrollTop : 0;
   const out = render(tracker, Date.now());

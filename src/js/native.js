@@ -7,6 +7,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { KeepAwake } from '@capacitor-community/keep-awake';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -104,6 +105,13 @@ export function pickFile() {
     };
     input.click();
   });
+}
+
+// Match the Android status bar to the theme. Style.Dark = light icons.
+export function setBars(color, dark) {
+  if (!isNative) return;
+  StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
+  if (color) StatusBar.setBackgroundColor({ color }).catch(() => {});
 }
 
 export function minimize() {

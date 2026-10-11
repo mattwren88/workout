@@ -11,10 +11,67 @@
   --miss: #e0401c;
   --miss-text: #b32a0e;
   --go: #1e44d6;
-  --white: #fff;
+  --white: #fff;  // raised surfaces: missed sets, offers, inputs
+  --acc: #b8ae98;
+  --kb: #5a554b;
+  --on-ink: var(--paper);
   --display: "Bricolage Grotesque", sans-serif;
   --mono: "Space Mono", "Courier New", monospace;
   --radius: 6px;
+}
+
+// ---------- Themes (Setup → Gym & display → Theme) ----------
+// Chalk: dark, for dim gyms and early mornings.
+:root[data-theme="chalk"] {
+  --paper: #181a19;
+  --ink: #f1ede4;
+  --muted: #a39e93;
+  --rule: #343735;
+  --dash: #6f6c66;
+  --inset: #232625;
+  --miss: #ff6a4a;
+  --miss-text: #ff8b70;
+  --go: #8aa8ff;
+  --white: #262928;
+  --acc: #8c846f;
+  --kb: #c9c3b6;
+}
+
+// Clean: white, system sans, softer corners.
+:root[data-theme="clean"] {
+  --paper: #fff;
+  --ink: #15171a;
+  --muted: #646a73;
+  --rule: #e4e6ea;
+  --dash: #b4b9c1;
+  --inset: #f2f4f7;
+  --miss: #e5484d;
+  --miss-text: #c62a2f;
+  --go: #2563eb;
+  --white: #fff;
+  --acc: #c3c8d0;
+  --kb: #646a73;
+  --display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 12px;
+}
+
+// Blueprint: navy and drafting lines, monospace throughout.
+:root[data-theme="blueprint"] {
+  --paper: #10294a;
+  --ink: #e6efff;
+  --muted: #9db3d6;
+  --rule: #2a4a75;
+  --dash: #5f7fae;
+  --inset: #173560;
+  --miss: #ff7a59;
+  --miss-text: #ffa48c;
+  --go: #7fe0ff;
+  --white: #1a3b69;
+  --acc: #6d86ad;
+  --kb: #b9c9e6;
+  --display: "Space Mono", monospace;
+  --radius: 2px;
 }
 
 *,
@@ -564,3 +621,62 @@ textarea {
 .cfg__links { flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
 
 .seg--day:not(.is-on) { border: 1.5px dashed var(--dash); color: var(--muted); font-weight: 400; }
+
+// Bottom dock: rest timer + Finish, pinned once a set is logged
+.dock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 20px;
+
+  .btn--finish { flex: 1; }
+
+  &.is-live {
+    position: sticky;
+    bottom: -20px; // cancel .main's bottom padding
+    margin: 0 -20px;
+    padding: 10px 20px 12px;
+    background: var(--paper);
+    border-top: 2px solid var(--ink);
+  }
+}
+
+.dock .rest {
+  min-height: 56px;
+  padding: 0 12px;
+  border: 2px solid currentcolor;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: normal;
+  max-width: 120px;
+}
+
+// Theme picker
+.themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.theme {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 10px;
+  border: 2px solid var(--rule);
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+
+  &.is-on { border-color: var(--ink); }
+}
+
+.theme__sw {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 3px;
+  padding: 5px;
+  border: 1.5px solid;
+  border-radius: 5px;
+
+  i { display: block; width: 8px; height: 18px; border-radius: 2px; }
+}

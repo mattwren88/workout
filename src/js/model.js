@@ -92,6 +92,13 @@ export function loadout(w, bar, pairs) {
   return { plates: best.plates, total: round2(bar + 2 * best.sum / 100), exact: best.sum === target };
 }
 
+export const THEMES = [
+  { id: 'ledger', name: 'LEDGER', swatch: ['#F3EEE2', '#1D1B17', '#FF5A36'] },
+  { id: 'chalk', name: 'CHALK', swatch: ['#181A19', '#F1EDE4', '#FF5A36'] },
+  { id: 'clean', name: 'CLEAN', swatch: ['#FFFFFF', '#15171A', '#2563EB'] },
+  { id: 'blueprint', name: 'BLUEPRINT', swatch: ['#10294A', '#E6EFFF', '#7FE0FF'] }
+];
+
 export const MISS_REST = 300;
 export const EXTRA_REST = 90;
 
@@ -127,11 +134,11 @@ export function fresh() {
     program: 'sl', texasPress: 'bench', unit: 'lb', bar: 45, incs: defaultIncs('lb'), restGood: 180,
     weights: defaults('lb'), fails: zeros(), deloads: zeros(), schemes: defaultSchemes(),
     offers: {}, accs: {}, accW: {}, accSR: {}, dayC: { kb: true, cycle: false }, cycleMins: 45,
-    cycleDone: false, healthSync: false, inventory: defaultInventory(), mode: 'bar', next: 'A', sets: {}, history: [],
+    cycleDone: false, healthSync: false, inventory: defaultInventory(), theme: 'ledger', mode: 'bar', next: 'A', sets: {}, history: [],
     sessionStart: null, returnSeen: null,
     // UI-only state below, never persisted
     tab: 'workout', openWarm: null, restFrom: null, restLift: null, restTarget: 180,
-    confirmReset: false, confirmDel: null, healthMsg: '', healthOk: true, backupOpen: false, backupMsg: '', backupOk: true, importText: ''
+    confirmReset: false, confirmDel: null, confirmDay: null, healthMsg: '', healthOk: true, backupOpen: false, backupMsg: '', backupOk: true, importText: ''
   };
 }
 
@@ -141,7 +148,7 @@ export function persisted(m) {
     v: 3, program: m.program, texasPress: m.texasPress, unit: m.unit, bar: m.bar, incs: m.incs, restGood: m.restGood,
     weights: m.weights, fails: m.fails, deloads: m.deloads, schemes: m.schemes, offers: m.offers,
     accs: m.accs, accW: m.accW, accSR: m.accSR, dayC: m.dayC, cycleMins: m.cycleMins,
-    cycleDone: m.cycleDone, healthSync: m.healthSync, inventory: m.inventory, mode: m.mode, next: m.next, sets: m.sets,
+    cycleDone: m.cycleDone, healthSync: m.healthSync, inventory: m.inventory, theme: m.theme, mode: m.mode, next: m.next, sets: m.sets,
     history: m.history, sessionStart: m.sessionStart, returnSeen: m.returnSeen
   };
 }
@@ -167,6 +174,7 @@ export function absorb(s, p) {
   s.cycleMins = typeof p.cycleMins === 'number' ? p.cycleMins : 45;
   s.cycleDone = p.cycleDone === true;
   s.healthSync = p.healthSync === true;
+  s.theme = THEMES.some((x) => x.id === p.theme) ? p.theme : 'ledger';
   const inv = obj(p.inventory), dInv = defaultInventory();
   s.inventory = { lb: Object.keys(obj(inv.lb)).length ? inv.lb : dInv.lb, kg: Object.keys(obj(inv.kg)).length ? inv.kg : dInv.kg };
   // 'kb' was the prototype's kettlebell mode; it is now Day C.
@@ -422,11 +430,15 @@ export class Tracker {
   setMode(m) { this.save({ mode: m, restFrom: null, restLift: null }); }
 
   // Today's workout from the day row: a program day, or 'C'.
-  pickDay(d) {
+  pickDay(d, guard = false) {
     const s = this.state;
-    if (d === 'C') { if (s.mode !== 'c') this.setMode('c'); return; }
-    if (s.mode === 'c') this.save({ mode: 'bar', restFrom: null, restLift: null });
-    if (d !== this.state.next) this.save({ next: d, sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
+    if (d === 'C') { if (s.mode !== 'c') this.save({ mode: 'c', restFrom: null, restLift: null, confirmDay: null }); return; }
+    const changing = d !== s.next;
+    // Switching barbell days drops today's logged sets, so ask for a second tap.
+    if (changing && guard && s.confirmDay !== d) { this.setState({ confirmDay: d }); return; }
+    const patch = { mode: 'bar', confirmDay: null };
+    if (changing) Object.assign(patch, { next: d, sets: {}, sessionStart: null, openWarm: null, restFrom: null, restLift: null });
+    this.save(patch);
   }
 
   swapWorkout() {
